@@ -35,5 +35,8 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.dynamic]
 version = {attr = "anchorna.__version__"}
 
+[tool.setuptools.packages.find]
+include = ["anchorna*"]
+
 #[tool.setuptools.package-data]
 #"anchorna.tests.data" = ["*.*"]

@@ -5,6 +5,7 @@ import json
 import itertools
 import logging
 from statistics import median
+import sys
 
 from sugar import Attr
 
@@ -37,7 +38,7 @@ def json_hook(d):
 
 def load_json(fname):
     if fname == '-':
-        return json.loads(input(), object_hook=json_hook)
+        return json.loads(sys.stdin.read(), object_hook=json_hook)
     else:
         with open(fname) as f:
             return json.load(f, object_hook=json_hook)

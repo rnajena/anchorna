@@ -65,20 +65,34 @@ def _cutout(fname_seq, fname_anchor,
 
     seqs = read(fname_seq).d
     anchors = load_anchors(fname_anchor)
-    l = anchors[int(left_anchor.strip().lower().removeprefix('a'))].d
-    r = anchors[int(right_anchor.strip().lower().removeprefix('a'))].d
+    l = left_anchor.strip().lower()
+    r = right_anchor.strip().lower()
+    if l == 'start':
+        i = 0
+    else:
+        l = anchors[int(l.removeprefix('a'))].d
+        ids = l.keys()
+    if r == 'end':
+        j = None
+    else:
+        r = anchors[int(r.removeprefix('a'))].d
+        ids = r.keys()
+    if l == 'start' and r == 'end':
+        raise ValueError("You don't want to cut out the whole sequence, do you?")
     seqs2 = BioBasket()
-    for id_ in l.keys():
+    for id_ in ids:
         if id_ not in seqs:
             import warnings
             warnings.warn(f'Id {id_} not present in sequences')
             continue
-        i1 = _apply_mode(l[id_].start, l[id_].offset, mode=mode)
-        i2 = _apply_mode(l[id_].stop, l[id_].offset, mode=mode)
-        i = i1 if left == 'full' else i2 if left == 'no' else (i1+i2)//2
-        j1 = _apply_mode(r[id_].start, r[id_].offset, mode=mode)
-        j2 = _apply_mode(r[id_].stop, r[id_].offset, mode=mode)
-        j = j2 if right == 'full' else j1 if right == 'no' else (j1+j2)//2
+        if l != 'start':
+            i1 = _apply_mode(l[id_].start, l[id_].offset, mode=mode)
+            i2 = _apply_mode(l[id_].stop, l[id_].offset, mode=mode)
+            i = i1 if left == 'full' else i2 if left == 'no' else (i1+i2)//2
+        if r != 'end':
+            j1 = _apply_mode(r[id_].start, r[id_].offset, mode=mode)
+            j2 = _apply_mode(r[id_].stop, r[id_].offset, mode=mode)
+            j = j2 if right == 'full' else j1 if right == 'no' else (j1+j2)//2
         seq = seqs[id_][i:j]
         offset = i if seq.type == 'nt' else 3 * i
         seq.meta.offset = seq.meta.get('offset', 0) + offset
@@ -192,7 +206,7 @@ def run_cmdline(cmd_args=None):
     g = p_go.add_argument_group('optional arguments', description=msg)
     features = [(int, ('w', 'maxshift')),
                 (str, ('refid', 'scoring')),
-                (float, ('thr_score', 'thr_quota_score', 'thr_quota'))]
+                (float, ('thr-score', 'thr-quota-score', 'thr-quota'))]
     for type_, fs in features:
         for f in fs:
             g.add_argument('--' + f, default=argparse.SUPPRESS, type=type_)
