@@ -48,7 +48,7 @@ def load_anchors(fname):
     selection = selection.lower()
     if '|' not in selection:
         return parse_selection(anchors, selection)
-    rem, selection = selection.split('|')
+    selection, rem = selection.split('|')
     anchors_remove = set(parse_selection(anchors, rem))
     anchors = parse_selection(anchors, selection) if selection.strip() else anchors
     anchors.data = [a for a in anchors if a not in anchors_remove]
@@ -184,12 +184,13 @@ def run_cmdline(cmd_args=None):
     msg = 'anchoRNA: Find anchors in short sequences of RNA/DNA'
     epilog = ('To get help on a subcommand run: anchorna command -h. '
               'Each time you provide a anchor file, you may load only '
-              'selected anchors from the file using a dedicated syntax, e.g. '
+              'selected anchors from the file using a dedicated syntax, '
+              'fname|select or fname|select|remove, e.g. '
               'fname|4:10,12 only loads anchors 4:10, 12 (python indexing) - '
-              'If you provide two | characters the first selection will be '
-              'removed and the second part (might be empty) '
-              'will be applied in the usual way. '
-              'You may also use the character - to load from stdin.')
+              'fname||a3 will remove the anchor a3 and fname|0:10|3 will '
+              'select the first 10 anchors and remove a3. '
+              'Numbers may be prepended with a single "a". '
+              'The character - can be used to load a anchor file from stdin.')
     parser = argparse.ArgumentParser(description=msg, epilog=epilog)
     version = '%(prog)s ' + __version__
     parser.add_argument('--version', action='version', version=version)
