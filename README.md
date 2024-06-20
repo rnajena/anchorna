@@ -1,6 +1,7 @@
 ### AnchoRNA
 [![build status](https://github.com/rnajena/anchorna/workflows/tests/badge.svg)](https://github.com/rnajena/anchorna/actions)
 [![codecov](https://codecov.io/gh/rnajena/anchorna/branch/master/graph/badge.svg)](https://codecov.io/gh/rnajena/anchorna)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.12190267.svg)](https://doi.org/10.5281/zenodo.12190267)
 
 Find anchors in RNA/DNA sequences.
 
