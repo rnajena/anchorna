@@ -72,8 +72,8 @@ def test_anchorna_workflow_subset():
         fname_seqs = tmpdir / 'pesti_example.gff'
         assert '' == check('anchorna create --tutorial-subset')
         assert '' == check('anchorna go --no-pbar anchors.gff')
-        out = check('anchorna print anchors.gff')
-        assert 'A11' in out
+        assert 'A11' in check('anchorna print anchors.gff')
+        assert 'F1' in check('anchorna print anchors.gff -v')
         out1 = check('anchorna combine anchors.gff|a5:a10|a8')
         out2 = check('anchorna combine anchors.gff|a5,a6,a7,a9')
         assert out1 == out2
@@ -108,6 +108,8 @@ def test_anchorna_workflow_subset():
         assert '' == check(f'anchorna go --fname {fname} --no-pbar anchors_cutout2.gff --maxshift=1000')
         assert '' == check('anchorna combine anchors.gff||a7:a10 anchors_cutout2.gff -o anchors_combined2.gff')
         assert read_anchors('anchors_combined2.gff') == load_selected_anchors('anchors.gff||a7')  # A7 is overlapping with A& and therefore not found
+
+        # TODO: add test with missing flukes
 
         # check --no-remove option and --continue-with option
         assert '' == check('anchorna go --no-remove --no-pbar anchors2.gff')
