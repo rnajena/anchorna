@@ -1,0 +1,56 @@
+name: tests
+on:
+  push:
+  pull_request:
+    branches:
+      # only branches from forks which have the form 'user:branch-name'
+      - '**:**'
+  schedule:
+    - cron:  '42 0 * * 0'
+jobs:
+  run_tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python: ["3.11", "3.12"]
+        options: [""]
+        include:
+          - os: macos-latest
+            python: "3.12"
+          - os: ubuntu-latest
+            python: "3.12"
+          - os: ubuntu-latest
+            python: "3.12"
+          - os: ubuntu-latest
+            python: "3.12"
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: ${{ matrix.python }}
+      - name: install dependencies
+        run: |
+          pip install pytest pytest-cov rnajena-sugar tqdm
+      - name: print conda environment info
+        run: |
+          conda info -a
+          conda list
+          pip list
+      - name: install package
+        run: |
+          pip install -v --no-deps .
+      - name: run test suite
+        run: |
+          mkdir empty; cd empty
+          pytest ../anchorna/tests --cov anchorna --cov-report=xml:$PWD/coverage.xml
+      - name: upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # required
+          fail_ci_if_error: true
