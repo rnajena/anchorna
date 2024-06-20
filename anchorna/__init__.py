@@ -1,10 +1,10 @@
 """
-anchoRNA
+AnchoRNA
 
-Finding anchors in short sequences of RNA/DNA
+Find anchors in RNA/DNA sequences
 """
 
-from anchorna.core import get_anchors
-from anchorna.util import load_json, write_json, jalview_features
+from anchorna.core import combine, cutout, find_my_anchors
+from anchorna.io import read_anchors, jalview_features
 
-__version__ = '0.0.1-dev'
+__version__ = '0.1.0-dev'

@@ -4,7 +4,7 @@ dynamic = ["version"]
 authors = [
     {name = "Tom Eulenfeld"},
 ]
-description = "Find anchors in short sequences of RNA/DNA"
+description = "Find anchors in RNA/DNA sequences"
 readme = "README.md"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -15,10 +15,8 @@ keywords = [
     "bioinformatics", "RNA", "DNA", "sequence", "anchors"
 ]
 dependencies = [
-  "sugar",
+  "rnajena-sugar",
   "tqdm",
-#  "pytest",
-#  "ipython",
 ]
 
 [project.urls]
@@ -38,5 +36,5 @@ version = {attr = "anchorna.__version__"}
 [tool.setuptools.packages.find]
 include = ["anchorna*"]
 
-#[tool.setuptools.package-data]
-#"anchorna.tests.data" = ["*.*"]
+[tool.setuptools.package-data]
+"anchorna.tests.data" = ["*.*"]

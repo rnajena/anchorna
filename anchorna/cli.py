@@ -1,13 +1,24 @@
 # (C) 2024, Tom Eulenfeld, MIT license
 
 import argparse
-import sys
 import contextlib
+from copy import deepcopy
+from importlib.resources import files
+import logging
+import logging.config
 from pathlib import Path
 import os
-import logging
-import json
+import subprocess
+import sys
+import tempfile
+import time
+import tomllib
+from warnings import warn
 
+from sugar import read
+from anchorna.core import combine, cutout, find_my_anchors
+from anchorna.io import jalview_features, read_anchors, load_selected_anchors
+from anchorna.util import _apply_mode, Options
 
 @contextlib.contextmanager
 def _changedir(path):
@@ -19,6 +30,77 @@ def _changedir(path):
         os.chdir(origin)
 
 
+EXAMPLE_TOML_CONFIG = """### Example configuration for anchorna go command in TOML format
+# The fname configuration value can be used by some other anchorna commands.
+
+fname = "pesti_example.gff"
+w = 5  # word length
+refid = "KC533775"
+maxshift = 100
+scoring = "blosum62"
+thr_score = 19  # add fluke only if above this threshold
+thr_quota_score = 22  # count number of flukes with a score >= thr_quota_score
+thr_quota = 1  # discard anchor if portion of counted flukes is smaller than quota (1=100%)
+
+removed_anchors_path = "removed_anchors_{}.gff"  # turn off with "none", alternatively delete this line
+logfile = "anchorna.log"  # turn off with "none", alternatively delete this line
+"""
+
+
+LOGGING_DEFAULT_CONFIG = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'capture_warnings': True,
+    'formatters': {
+        'file': {
+            'format': ('%(asctime)s  %(levelname)s:%(name)s:%(message)s'),
+            'datefmt': '%Y-%m-%d %H:%M:%S'
+        },
+        'console': {
+            'format': '%(levelname)s:%(message)s'
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'console',
+            'level': 'DEBUG',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'formatter': 'file',
+            'level': 'DEBUG',
+            'filename': None,
+        },
+    },
+    'loggers': {
+        'anchorna': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'py.warnings': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        }
+    }
+}
+
+
+def _configure_logging(loggingc, logfile=None):
+    if loggingc is None:
+        loggingc = deepcopy(LOGGING_DEFAULT_CONFIG)
+        if logfile is None or logfile.lower() in ('none', 'null'):
+            del loggingc['handlers']['file']
+            loggingc['loggers']['anchorna']['handlers'] = ['console']
+            loggingc['loggers']['py.warnings']['handlers'] = ['console']
+        else:
+            loggingc['handlers']['file']['filename'] = logfile
+    logging.config.dictConfig(loggingc)
+    logging.captureWarnings(loggingc.get('capture_warnings', False))
+
+
 def _start_ipy(obj):
     from IPython import start_ipython
     print('Anchors loaded into anchors variable.')
@@ -26,88 +108,139 @@ def _start_ipy(obj):
     print('Bye')
 
 
-def parse_selection(anchors, selection):
-    anchors2 = anchors[:0]
-    for part in selection.split(','):
-        if ':' in part:
-            i, j = part.split(':')
-            i = int(i.strip().removeprefix('a'))
-            j = int(j.strip().removeprefix('a'))
+def _tutorial_seqs(subset=False):
+    seqs = read(files('anchorna.tests.data').joinpath('pesti56.gff.zip'))
+    if subset:
+        seqs = seqs[18:28]
+        start, stop = zip(*[seq.fts.get('cds').loc_range for seq in seqs])
+        start = max(start)
+        stop = min(stop)
+        stop = start + (stop-start) // 3 * 3 + 6
+        for i in range(len(seqs)):
+            seqs[i] = seqs[i][:start + 999] + seqs[i][stop:]
+            seqs[i].fts[0].loc.stop -= stop-start - 999
+    return seqs
+
+
+def _cmd_create(conf, tutorial=False, tutorial_subset=False):
+    if tutorial and tutorial_subset:
+        raise ValueError('Only one of tutorial or tutorial_subset are allowed')
+    with open(conf, 'w') as f:
+        f.write(EXAMPLE_TOML_CONFIG)
+    if tutorial or tutorial_subset:
+        seqs = _tutorial_seqs(subset=tutorial_subset)
+        path = os.path.dirname(conf)
+        seqs.write(os.path.join(path, 'pesti_example.gff'))
+
+def _cmd_go(fname, fname_anchor, pbar=True, remove=True, continue_with=None,
+            removed_anchors_path=None, logconf=None, logfile=None, **kw):
+    _configure_logging(logconf, logfile)
+    log = logging.getLogger('anchorna')
+    options = Options(**kw)
+    log.info(f'anchorna go is called with arguments {fname=}, {fname_anchor=}, '
+             f'{remove=}, {continue_with=}, {removed_anchors_path=}')
+    log.info(f'{options=}')
+    seqs = read(fname)
+    if continue_with is not None:
+        continue_with = read_anchors(continue_with)
+    anchors, removed_anchors = find_my_anchors(
+        seqs, options, remove=remove, continue_with=continue_with, pbar=pbar)
+    rap = removed_anchors_path
+    if remove:
+        if rap is None or rap.lower() in ('none', 'null'):
+            log.debug('Do not save removed anchors')
         else:
-            i = int(part.strip().removeprefix('a'))
-            j = i + 1
-        anchors2.extend(anchors[i:j])
-    return anchors2
-
-def load_anchors(fname):
-    from anchorna import load_json
-    if '|' not in fname:
-        return load_json(fname)
-    fname, selection = fname.split('|', 1)
-    anchors = load_json(fname.strip())
-    selection = selection.lower()
-    if '|' not in selection:
-        return parse_selection(anchors, selection)
-    selection, rem = selection.split('|')
-    anchors_remove = set(parse_selection(anchors, rem))
-    anchors = parse_selection(anchors, selection) if selection.strip() else anchors
-    anchors.data = [a for a in anchors if a not in anchors_remove]
-    return anchors
-
-def _cutout(fname_seq, fname_anchor,
-            left_anchor, right_anchor, left, right,
-            mode='default',
-            # offset='nt',
-            out=None,
-            fmt=None):
-    from sugar import read, BioBasket
-    from anchorna.util import _apply_mode
-
-    seqs = read(fname_seq).d
-    anchors = load_anchors(fname_anchor)
-    l = left_anchor.strip().lower()
-    r = right_anchor.strip().lower()
-    if l == 'start':
-        i = 0
+            rap = rap.format(time.strftime('%Y_%m_%d-%H_%M_%S'))
+            log.info(f'Save removed anchors in file {rap}')
+            removed_anchors.write(rap)
     else:
-        l = anchors[int(l.removeprefix('a'))].d
-        ids = l.keys()
-    if r == 'end':
-        j = None
+        assert removed_anchors is None
+    log.info(f'Write anchors to file {fname_anchor}')
+    anchors.write(fname_anchor)
+
+def _cmd_print(fname_anchor, verbose=False, mode='aa'):
+    anchors = load_selected_anchors(fname_anchor)
+    try:
+        print(anchors.tostr(verbose=verbose, mode=mode))
+    except BrokenPipeError:
+        pass
+
+def _cmd_load(fname_anchor):
+    _start_ipy(read_anchors(fname_anchor))
+
+def _cmd_export(fname_anchor, out, mode='aa'):
+    assert mode in ('seq', 'cds', 'aa')
+    anchors = load_selected_anchors(fname_anchor)
+    outstr = jalview_features(anchors, mode=mode)
+    if out is None:
+        print(outstr)
     else:
-        r = anchors[int(r.removeprefix('a'))].d
-        ids = r.keys()
-    if l == 'start' and r == 'end':
-        raise ValueError("You don't want to cut out the whole sequence, do you?")
-    seqs2 = BioBasket()
-    for id_ in ids:
-        if id_ not in seqs:
-            import warnings
-            warnings.warn(f'Id {id_} not present in sequences')
-            continue
-        if l != 'start':
-            i1 = _apply_mode(l[id_].start, l[id_].offset, mode=mode)
-            i2 = _apply_mode(l[id_].stop, l[id_].offset, mode=mode)
-            i = i1 if left == 'full' else i2 if left == 'no' else (i1+i2)//2
-        if r != 'end':
-            j1 = _apply_mode(r[id_].start, r[id_].offset, mode=mode)
-            j2 = _apply_mode(r[id_].stop, r[id_].offset, mode=mode)
-            j = j2 if right == 'full' else j1 if right == 'no' else (j1+j2)//2
-        seq = seqs[id_][i:j]
-        offset = i if seq.type == 'nt' else 3 * i
-        seq.meta.offset = seq.meta.get('offset', 0) + offset
-        seqs2.append(seq)
+        with open(out, 'w') as f:
+            f.write(outstr)
+
+def _cmd_view(fname_anchor, fname, mode='aa', align=None):
+    assert mode in ('seq', 'cds', 'aa')
+    with tempfile.TemporaryDirectory(prefix='anchorna') as tmpdir:
+        fname_export = Path(tmpdir) / 'jalview_features.txt'
+        fnameseq = Path(tmpdir) / 'aa_or_seq_or_cds.fasta'
+        _cmd_export(fname_anchor, fname_export, mode=mode)
+        seqs = read(fname)
+        if mode != 'seq':
+            anchors = read_anchors(fname_anchor)
+            offsets = {f.seqid: f.offset for anchor in anchors for f in (anchor.data + anchor.missing)}
+            for seq in seqs:
+                seq.data = seq.data[offsets[seq.id]:]
+            if mode == 'aa':
+                seqs = seqs.translate(check_start=False)
+        if align:
+            anchors = read_anchors(fname_anchor)
+            anchor = anchors[int(align.lower().removeprefix('a'))]
+            anchor.data += anchor.missing
+            anchor.missing = []
+            start = max(_apply_mode(fluke.start, fluke.offset, mode=mode) for fluke in anchor)
+            for seq in seqs:
+                fluke = anchor.d[seq.id]
+                seq.data = '-' * (start - _apply_mode(fluke.start, fluke.offset, mode=mode)) + seq.data
+        seqs.write(fnameseq)
+        subprocess.run(f'jalview {fnameseq} --features {fname_export}'.split())
+
+def _cmd_combine(fname_anchor, out):
+    lot_of_anchors = [load_selected_anchors(fn) for fn in fname_anchor]
+    anchors = combine(lot_of_anchors)
+    anchors.write(out)
+
+def _cmd_cutout(fname, fname_anchor, pos1, pos2, out, fmt, mode='seq'):
+    assert mode in ('seq', 'cds', 'aa')
+    seqs = read(fname)
+    anchors = load_selected_anchors(fname_anchor)
+    seqs2 = cutout(seqs, anchors, pos1, pos2, mode=mode)
     if out is None:
         print(seqs2.tofmtstr(fmt or 'fasta'))
     else:
         seqs2.write(out, fmt)
 
 
-def run(command, pytest_args, mode='default', out=None, conf=None, pdb=False, **args):
-    from sugar import read
-    from anchorna import get_anchors, jalview_features, load_json, write_json
-    from anchorna.util import AnchorList, ConfigJSONDecoder, Options
-
+def run(command, conf=None, pdb=False, **args):
+    if command == 'create':
+        return _cmd_create(conf, **args)
+    if conf:
+        try:
+            with open(conf, 'rb') as f:
+                conf = tomllib.load(f)
+        except ValueError as ex:
+            sys.exit('Error while parsing the configuration: %s' % ex)
+        except IOError as ex:
+            if command == 'go':
+                warn(ex)
+            conf = {}
+    else:
+        conf = {}
+    if command in ('cutout', 'view'):
+        # ignore all config settings except fname
+        conf = {'fname': conf['fname']} if 'fname' in conf else {}
+    # Populate args with conf, but prefer args
+    conf.update(args)
+    args = conf
     if pdb:
         import traceback
         import pdb
@@ -116,66 +249,10 @@ def run(command, pytest_args, mode='default', out=None, conf=None, pdb=False, **
             print()
             pdb.pm()
         sys.excepthook = info
-    if command == 'print':
-        anchors = load_anchors(args['fname'])
-        try:
-            print(anchors.tostr(verbose=args['verbose'], mode=mode))
-        except BrokenPipeError:
-            pass
-    elif command == 'load':
-        _start_ipy(load_json(args['fname']))
-    elif command == 'go':
-        logging.basicConfig(level=logging.DEBUG)
-        if conf:
-            try:
-                with open(conf) as f:
-                    conf = json.load(f, cls=ConfigJSONDecoder)
-            except ValueError as ex:
-                print('Error while parsing the configuration: %s' % ex)
-                return
-            except IOError as ex:
-                print(ex)
-                return
-            # Populate args with conf, but prefer args
-            conf.update(args)
-        args = conf
-        seqs = read(args.pop('fname_seqs'))
-        out = args.pop('fname_anchors')
-        options = Options(**args)
-        anchors = get_anchors(seqs, options)
-        write_json(anchors, out)
-    elif command == 'combine':
-        anchors = set()
-        for fn in args['fname']:
-            nans = set(load_anchors(fn))
-            if len(nans & anchors) > 0:
-                ids = ', '.join(a.id for a in nans & anchors)
-                raise ValueError(f'Anchors {ids} exits in multiple files')
-            anchors |= nans
-        anchors = AnchorList(sorted(anchors, key=lambda a: a.ref.start))
-        write_json(anchors, out)
-    elif command == 'export':
-        anchors = load_anchors(args['fname'])
-        outstr = jalview_features(anchors, mode=mode)
-        if out is None:
-            print(outstr)
-        else:
-            with open(out, 'w') as f:
-                f.write(outstr)
-    elif command == 'cutout':
-        _cutout(out=out, **args)
-    elif command == 'test':
-        try:
-            import pytest
-        except ImportError:
-            msg = ("\nanchorna's test suite uses pytest. "
-                   "Please install pytest before running the tests.")
-            sys.exit(msg)
-        path = Path(__file__).parent
-        print(f'Run pytest in directory {path}')
-        with _changedir(path):
-            status = pytest.main(pytest_args)
-        sys.exit(status)
+    try:
+        globals()[f'_cmd_{command}'](**args)
+    except KeyError:
+        raise ValueError(f'Unknown command: {command}')
 
 
 def run_cmdline(cmd_args=None):
@@ -185,96 +262,100 @@ def run_cmdline(cmd_args=None):
     epilog = ('To get help on a subcommand run: anchorna command -h. '
               'Each time you provide a anchor file, you may load only '
               'selected anchors from the file using a dedicated syntax, '
-              'fname|select or fname|select|remove, e.g. '
-              'fname|4:10,12 only loads anchors 4:10, 12 (python indexing) - '
-              'fname||a3 will remove the anchor a3 and fname|0:10|3 will '
+              'fname_anchor|select or fname_anchor|select|remove, e.g. '
+              'fname_anchor|4:10,12 only loads anchors 4:10, 12 (python indexing) - '
+              'fname_anchor||a3 will remove the anchor a3 and fname_anchor|0:10|3 will '
               'select the first 10 anchors and remove a3. '
               'Numbers may be prepended with a single "a". '
               'The character - can be used to load a anchor file from stdin.')
     parser = argparse.ArgumentParser(description=msg, epilog=epilog)
     version = '%(prog)s ' + __version__
     parser.add_argument('--version', action='version', version=version)
+    parser.add_argument('--pdb', action='store_true', help='Start the debugger upon exception')
 
     sub = parser.add_subparsers(title='commands', dest='command')
     sub.required = True
-    msg = 'find anchors and write them into anchor file'
-    p_go = sub.add_parser('go', help=msg, description=msg)
-    p_go.add_argument('fname_seqs', help='sequence file name')
-    p_go.add_argument('fname_anchors', help='anchor file name (JSON output)')
-    msg = 'Configuration file to use (default: conf.json)'
-    p_go.add_argument('-c', '--conf', default='conf.json', help=msg)
-    msg = 'Use these flags to overwrite values in the config file.'
-    g = p_go.add_argument_group('optional arguments', description=msg)
+
+    p_create = sub.add_parser('create', help=(msg:='create example configuration'), description=msg)
+    p_go = sub.add_parser('go', help=(msg:='find anchors and write them into anchor file'), description=msg)
+    p_print = sub.add_parser('print', help=(msg:='print contents of anchor file'), description=msg)
+    p_load = sub.add_parser('load', help=(msg:='load anchors into IPython session'), description=msg)
+    p_export = sub.add_parser('export', help=(msg:='export anchors into feature file to view them in Jalview'), description=msg)
+    p_view = sub.add_parser('view', help=(msg:='view anchors in JalView (i.e. call export and JalView)'), description=msg)
+    msg = 'combine (and select or remove) anchors from one file or different files'
+    msg2 = ('An expression consists of a file name fname_anchor or fname_anchor|selection to select anchors or fname_anchor||expression to remove anchors, or fname|selection|expression. '
+            'Example call: anchorna combine f1.gff "f2.gff|a3:a5,a7" "f3.gff|a10" --out f5.gff, see also anchorna -h')
+    p_combine = sub.add_parser('combine', help=msg, description=msg, epilog=msg2)
+    msg = 'cut out sequences between anchors and export them to new sequences file'
+    msg2 = ('This command serves two purposes: '
+            '1. Cutout sequences to put them again into the go command and '
+            'find more anchors with updated options. '
+            'Please use a file format which preserves the meta.offset attributes, e.g. sjson; use mode seq.'
+            'Combine the found anchors with the anchorna combine command. '
+            '2. Cutout sequences to use them in external tool. '
+            'The cutout command expects two positions in the sequence. '
+            'Each possition has 3 parts ABC where B and C are optional. '
+            'Part A: Is a number or number prepended with letter a to specify the anchor number, '
+            'use special words "start" and "end" for start or end of sequence, '
+            'use special words "ATG" and "*" for start or stop codon of sequence (only allowed in mode "seq") '
+            'Part B: One of the characters <, >, ^, for start, end or middle of word (anchor) specified in A, '
+            'default is ^ (middle), must be ommitted for A=start or A=end. '
+            'Part C: Additional character offset in the form +X or -X.'
+            'Examples: anchorna cutout anchors.gff "a11<" "a12>+10", anchorna cutout anchors.gff a10 "*>"'
+            )
+    p_cutout = sub.add_parser('cutout', help=msg, description=msg, epilog=msg2)
+
+
+    for p in (p_create, p_go, p_cutout, p_view):
+        p.add_argument('-c', '--conf', default='anchorna.conf', help='configuration file to use (default: anchorna.conf)')
+    p_create.add_argument('--tutorial', action='store_true', help='copy GFF sequences file for tutorial')
+    p_create.add_argument('--tutorial-subset', action='store_true', help=argparse.SUPPRESS)  # for testing purposes
+    p_go.add_argument('fname_anchor', help='anchor file name (GFF output)')
+    p_go.add_argument('--no-pbar', help='do not show progress bar', action='store_false', dest='pbar', default=argparse.SUPPRESS)
+    p_go.add_argument('--no-remove', help='do not remove contradicting anchors', action='store_false', dest='remove', default=argparse.SUPPRESS)
+    p_go.add_argument('--continue-with', help='only remove contradicting anchors from passed anchor list', default=argparse.SUPPRESS)
+
+    g = p_go.add_argument_group('optional arguments', description='Use these flags to overwrite values in the config file.')
     features = [(int, ('w', 'maxshift')),
-                (str, ('refid', 'scoring')),
+                (str, ('fname', 'refid', 'scoring', 'logfile', 'removed-anchors-path')),
                 (float, ('thr-score', 'thr-quota-score', 'thr-quota'))]
     for type_, fs in features:
         for f in fs:
             g.add_argument('--' + f, default=argparse.SUPPRESS, type=type_)
+    for p in (p_cutout, p_view):
+        g = p.add_argument_group('optional arguments', description='Use these flags to overwrite values in the config file.')
+        g.add_argument('--fname', default=argparse.SUPPRESS)
 
-    msg = 'export anchors into feature file to view them in Jalview'
-    p_export = sub.add_parser('export', help=msg, description=msg)
-    p_export.add_argument('fname', help='anchor file name')
+
+    p_export.add_argument('fname_anchor', help='anchor file name')
     p_export.add_argument('-o', '--out', help='output file name (by default prints to stdout)')
-
-
-    msg = 'combine (and select or remove) anchors from one file or different files'
-    msg2 = ('An expression consists of a file name fname or fname/s/selection to select acnhors or fname/r/expression to remove anchors. '
-            'Example call: anchorna combine f1.json "f2.sjon|a3:a5,a7" "f3.json|a10|" --out f5.json')
-    p_combine = sub.add_parser('combine', help=msg, description=msg, epilog=msg2)
-    p_combine.add_argument('fname', nargs='+', help='anchor file name')
+    p_view.add_argument('fname_anchor', help='anchor file name')
+    p_view.add_argument('--align', help='align sequences at given anchor')
+    p_combine.add_argument('fname_anchor', nargs='+', help='anchor file name')
     p_combine.add_argument('-o', '--out', help='output file name (by default prints to stdout)')
 
-    msg = 'cut out sequences between anchors and export them to new sequences file'
-    msg2 = ('This command serves two purposes: '
-            '1. Cutout sequences to put them again into the go command and find more anchors. '
-            'In this case it might be important to use a file format that writes the offset metadata, '
-            'e.g. sjson. '
-            '2. Cutout sequences to use them in external tool.')
-    p_cutout = sub.add_parser('cutout', help=msg, description=msg, epilog=msg2)
-    p_cutout.add_argument('fname_seq', help='sequence file name')
     p_cutout.add_argument('fname_anchor', help='anchor file name')
-    p_cutout.add_argument('left_anchor', help='left anchor, use start for start of sequence')
-    p_cutout.add_argument('right_anchor', help='right anchor, use end for end of sequence')
-    choices = ['full', 'no', 'mid']
-    p_cutout.add_argument('-l', '--left', help='include left anchor, default: full', default='full', choices=choices)
-    p_cutout.add_argument('-r', '--right', help='include right anchor, default: full', default='full', choices=choices)
+    p_cutout.add_argument('pos1', help='left position')
+    p_cutout.add_argument('pos2', help='right position')
+
     p_cutout.add_argument('-o', '--out', help='output file name (by default prints fasta to stdout)')
     p_cutout.add_argument('-f', '--fmt', help='format of file (default: autodetect)')
-    # p_cutout.add_argument('--offset', help='', choices=['nt', 'aa'], default='nt')
 
-
-    for p in (p_go, p_combine, p_cutout):
-        msg = 'Start the debugger upon exception'
-        p.add_argument('--pdb', action='store_true', help=msg)
-
-    msg = 'print contents of anchor file'
-    p_print = sub.add_parser('print', help=msg)
-    p_print.add_argument('fname', help='anchor file name')
+    p_print.add_argument('fname_anchor', help='anchor file name')
     p_print.add_argument('-v', '--verbose', help=msg, action='store_true')
+    p_load.add_argument('fname_anchor', help='anchor file name')
 
-    msg = 'load anchors into IPython session'
-    p_load = sub.add_parser('load', help=msg)
-    p_load.add_argument('fname', help='anchor file name')
-
-    for p in (p_print, p_export, p_cutout):
-        choices = ['default', 'offset', 'seq', 'seqoffset']
-        msg = ('choose mode, offset: add offset, seq: multiply by 3, '
-               'seqoffset: seq+offset ;)')
-        p.add_argument('-m', '--mode', default='default', choices=choices, help=msg)
-
-    # msg = 'run anchorna test suite'
-    # msg2 = ('The test suite uses pytest. You can call pytest directly or use '
-    #         'most of pytest cli arguments in the anchorna test call. '
-    #         'See pytest -h.')
-    # p_test = sub.add_parser('test', help=msg, description=msg2)
-
+    for p in (p_print, p_export, p_view, p_cutout):
+        choices = ['seq', 'cds', 'aa']
+        default = 'seq' if p == p_cutout else 'aa'
+        msg = ('choose mode, seq: relative to original sequence, '
+               'cds: accounting for offset (usually coding sequence), aa: translated cds '
+               f'(default: {default})')
+        p.add_argument('-m', '--mode', default=default, choices=choices, help=msg)
 
     # Get command line arguments and start run function
-    args, pytest_args = parser.parse_known_args(cmd_args)
-    if args.command != 'test':
-        parser.parse_args(cmd_args)  # just call again to properly raise the error
-    run(pytest_args=pytest_args, **vars(args))
+    args = parser.parse_args(cmd_args)
+    run(**vars(args))
 
 if __name__ == '__main__':
     run_cmdline()
