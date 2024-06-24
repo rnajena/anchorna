@@ -18,13 +18,18 @@ jobs:
         include:
           - os: macos-latest
             python: "3.12"
-          - os: ubuntu-latest
+          - os: windows-latest
             python: "3.12"
           - os: ubuntu-latest
             python: "3.12"
+            options: ["warnings"]
           - os: ubuntu-latest
             python: "3.12"
+            options: ["full"]
     runs-on: ${{ matrix.os }}
+    env:
+      # set additional runtest options (--full, -W error)
+      test_options: ${{ contains(matrix.options, 'full') && '--full' || '' }} ${{ contains(matrix.options, 'warnings') && '-W error' || '' }}
     defaults:
       run:
         shell: bash -l {0}
@@ -48,7 +53,7 @@ jobs:
       - name: run test suite
         run: |
           mkdir empty; cd empty
-          pytest ../anchorna/tests --cov anchorna --cov-report=xml:$PWD/coverage.xml
+          pytest ../anchorna/tests --cov anchorna --cov-report=xml:$PWD/coverage.xml ${{ env.test_options }}
       - name: upload coverage
         uses: codecov/codecov-action@v4
         with:
