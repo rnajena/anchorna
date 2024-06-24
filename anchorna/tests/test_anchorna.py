@@ -1,12 +1,15 @@
 # (C) 2024, Tom Eulenfeld, MIT license
 import contextlib
+from importlib.resources import files
 import io
 import os
 from pathlib import Path
 from subprocess import check_output
 import tempfile
 from unittest.mock import patch
+from warnings import warn
 
+import pytest
 from sugar import read
 
 from anchorna import cutout, read_anchors
@@ -61,6 +64,32 @@ def check(cmd):
     with contextlib.redirect_stdout(io.StringIO()) as f:
         run_cmdline(args[1:])
     return f.getvalue()
+
+
+def test_anchorna_script_help():
+    """
+    Test that anchorna can be called on the command line
+    """
+    assert b'Find anchors' in check_output('anchorna -h'.split())
+    assert b'go' in check_output('anchorna go -h'.split())
+
+
+def test_reproduce_anchor_file_subset():
+    fname = files('anchorna.tests.data').joinpath('anchors_subset.gff')
+    try:
+        anchors2 = read_anchors(fname)
+    except FileNotFoundError:
+        warn(f'Did not find test file {fname}, create it')
+        anchors2 = None
+    with _changetmpdir() as tmpdir:
+        check('anchorna create --tutorial-subset')
+        check('anchorna go --no-pbar anchors.gff')
+        anchors = read_anchors('anchors.gff')
+        if anchors2 is None:
+            import shutil
+            shutil.copy(tmpdir / 'anchors.gff', fname)
+            anchors2 = read_anchors(fname)
+    assert anchors2 == anchors
 
 
 def test_anchorna_workflow_subset():
@@ -123,9 +152,20 @@ def test_anchorna_workflow_subset():
         assert load_json(json) == anchors
 
 
-def test_anchorna_script_help():
-    """
-    Test that anchorna can be called on the command line
-    """
-    assert b'Find anchors' in check_output('anchorna -h'.split())
-    assert b'go' in check_output('anchorna go -h'.split())
+@pytest.mark.slowtest
+def test_reproduce_anchor_file_complete():
+    fname = files('anchorna.tests.data').joinpath('anchors_complete.gff')
+    try:
+        anchors2 = read_anchors(fname)
+    except FileNotFoundError:
+        warn(f'Did not find test file {fname}, create it')
+        anchors2 = None
+    with _changetmpdir() as tmpdir:
+        check('anchorna create --tutorial')
+        check('anchorna go --no-pbar anchors.gff')
+        anchors = read_anchors('anchors.gff')
+        if anchors2 is None:
+            import shutil
+            shutil.copy(tmpdir / 'anchors.gff', fname)
+            anchors2 = read_anchors(fname)
+    assert anchors2 == anchors

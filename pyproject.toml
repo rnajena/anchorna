@@ -37,4 +37,5 @@ version = {attr = "anchorna.__version__"}
 include = ["anchorna*"]
 
 [tool.setuptools.package-data]
+"anchorna.tests" = ["pytest.ini"]
 "anchorna.tests.data" = ["*.*"]
