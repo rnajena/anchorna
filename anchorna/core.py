@@ -49,20 +49,20 @@ def shift_and_find_best_word(seq, words, starti, w, sm, maxshift=None, maxshift_
                       for i in range(max(0, starti-maxshift_right),
                                      min(len(seq)-w, starti+maxshift+1))],
                      default=(0, None))
+    sim, ind = min((abs(ind - starti), sim, ind) for sim, ind in siminds)[1:]
     if len(siminds) > 1:
-        log.warning(f'multiple max values exist: {siminds=}')
-    sim, ind = siminds[0]
+        log.warning(f'multiple max values exist: {siminds=}, select {sim=}, {ind=} with smallest shift')
     return sim, ind
 
 
-def anchor_for_words(i, words, aas, w, refid, maxshift, thr_score, thr_quota_score, thr_quota,
+def anchor_for_words(i, words, aas, w, refid, maxshift, thr_add_score, thr_quota_score, thr_quota,
                      scoring, method='default'):
     """
     Find the most similar not yet found word in a list of sequences and add it to words set
 
     If no good word is found anymore, return a single anchor.
     """
-    assert thr_quota_score >= thr_score
+    assert thr_quota_score >= thr_add_score
     winlen = w
     aaref = [aa for aa in aas if aa.id == refid][0]
     assert aaref == aas[0]
@@ -81,7 +81,7 @@ def anchor_for_words(i, words, aas, w, refid, maxshift, thr_score, thr_quota_sco
             # short way out 50 % fail
             if nfails / len(aas) >= 0.5:
                 return
-        res.append((score, start, str(aa)[start:start+winlen], aa, score >= thr_score))
+        res.append((score, start, str(aa)[start:start+winlen], aa, score >= thr_add_score))
     if method != 'simple':
         for score, start, word, aa_, above_thres in sorted(res, reverse=True):
             if above_thres and word not in words:
@@ -96,7 +96,7 @@ def anchor_for_words(i, words, aas, w, refid, maxshift, thr_score, thr_quota_sco
         flukes.append(fluke)
     assert flukes[0].seqid == refid
     anchor = Anchor(flukes, refid=refid)
-    anchor._calculate_scores()
+    anchor._calculate_fluke_scores()
     return anchor
 
 
@@ -129,7 +129,7 @@ def find_anchors_winlen(aas, options, indexrange=None, anchors=None, pbar=False)
             if pbar.update():
                 pbar.set_description(desc.format(len(anchors)))
     anchors = sorted(anchors, key=lambda a: a.ref.start)
-    return AnchorList(anchors, options=options)
+    return AnchorList(anchors)
 
 
 def find_my_anchors(seqs, options, remove=True, continue_with=None, **kw):
@@ -163,7 +163,6 @@ def find_my_anchors(seqs, options, remove=True, continue_with=None, **kw):
         anchors = continue_with
     if remove:
         removed_anchors = anchors.remove_contradicting_anchors()
-        removed_anchors.data = sorted(removed_anchors, key=lambda a: a.ref.start)
         log.info(f'After removal of contradicting anchors {len(anchors)} anchors left')
     else:
         removed_anchors = None

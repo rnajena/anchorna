@@ -38,7 +38,7 @@ w = 5  # word length
 refid = "KC533775"
 maxshift = 100
 scoring = "blosum62"
-thr_score = 19  # add fluke only if above this threshold
+thr_add_score = 19  # add fluke only if above this threshold
 thr_quota_score = 22  # count number of flukes with a score >= thr_quota_score
 thr_quota = 1  # discard anchor if portion of counted flukes is smaller than quota (1=100%)
 
@@ -258,7 +258,7 @@ def run(command, conf=None, pdb=False, **args):
 def run_cmdline(cmd_args=None):
     """Main entry point from the command line"""
     from anchorna import __version__
-    msg = 'anchoRNA: Find anchors in short sequences of RNA/DNA'
+    msg = 'AnchoRNA: Find anchors in short sequences of RNA/DNA'
     epilog = ('To get help on a subcommand run: anchorna command -h. '
               'Each time you provide a anchor file, you may load only '
               'selected anchors from the file using a dedicated syntax, '
@@ -281,16 +281,16 @@ def run_cmdline(cmd_args=None):
     p_print = sub.add_parser('print', help=(msg:='print contents of anchor file'), description=msg)
     p_load = sub.add_parser('load', help=(msg:='load anchors into IPython session'), description=msg)
     p_export = sub.add_parser('export', help=(msg:='export anchors into feature file to view them in Jalview'), description=msg)
-    p_view = sub.add_parser('view', help=(msg:='view anchors in JalView (i.e. call export and JalView)'), description=msg)
+    p_view = sub.add_parser('view', help=(msg:='view anchors in JalView (i.e. call export and start JalView)'), description=msg)
     msg = 'combine (and select or remove) anchors from one file or different files'
     msg2 = ('An expression consists of a file name fname_anchor or fname_anchor|selection to select anchors or fname_anchor||expression to remove anchors, or fname|selection|expression. '
             'Example call: anchorna combine f1.gff "f2.gff|a3:a5,a7" "f3.gff|a10" --out f5.gff, see also anchorna -h')
     p_combine = sub.add_parser('combine', help=msg, description=msg, epilog=msg2)
-    msg = 'cut out sequences between anchors and export them to new sequences file'
+    msg = 'cut out sequences between two anchors and export them to new sequence file'
     msg2 = ('This command serves two purposes: '
             '1. Cutout sequences to put them again into the go command and '
             'find more anchors with updated options. '
-            'Please use a file format which preserves the meta.offset attributes, e.g. sjson; use mode seq.'
+            'Please use a file format which preserves the meta.offset attributes, e.g. sjson; use mode seq. '
             'Combine the found anchors with the anchorna combine command. '
             '2. Cutout sequences to use them in external tool. '
             'The cutout command expects two positions in the sequence. '
@@ -300,7 +300,7 @@ def run_cmdline(cmd_args=None):
             'use special words "ATG" and "*" for start or stop codon of sequence (only allowed in mode "seq") '
             'Part B: One of the characters <, >, ^, for start, end or middle of word (anchor) specified in A, '
             'default is ^ (middle), must be ommitted for A=start or A=end. '
-            'Part C: Additional character offset in the form +X or -X.'
+            'Part C: Additional character offset in the form +X or -X. '
             'Examples: anchorna cutout anchors.gff "a11<" "a12>+10", anchorna cutout anchors.gff a10 "*>"'
             )
     p_cutout = sub.add_parser('cutout', help=msg, description=msg, epilog=msg2)
@@ -308,7 +308,7 @@ def run_cmdline(cmd_args=None):
 
     for p in (p_create, p_go, p_cutout, p_view):
         p.add_argument('-c', '--conf', default='anchorna.conf', help='configuration file to use (default: anchorna.conf)')
-    p_create.add_argument('--tutorial', action='store_true', help='copy GFF sequences file for tutorial')
+    p_create.add_argument('--tutorial', action='store_true', help='copy GFF sequence file for tutorial')
     p_create.add_argument('--tutorial-subset', action='store_true', help=argparse.SUPPRESS)  # for testing purposes
     p_go.add_argument('fname_anchor', help='anchor file name (GFF output)')
     p_go.add_argument('--no-pbar', help='do not show progress bar', action='store_false', dest='pbar', default=argparse.SUPPRESS)
@@ -318,7 +318,7 @@ def run_cmdline(cmd_args=None):
     g = p_go.add_argument_group('optional arguments', description='Use these flags to overwrite values in the config file.')
     features = [(int, ('w', 'maxshift')),
                 (str, ('fname', 'refid', 'scoring', 'logfile', 'removed-anchors-path')),
-                (float, ('thr-score', 'thr-quota-score', 'thr-quota'))]
+                (float, ('thr-add-score', 'thr-quota-score', 'thr-quota'))]
     for type_, fs in features:
         for f in fs:
             g.add_argument('--' + f, default=argparse.SUPPRESS, type=type_)
@@ -339,7 +339,7 @@ def run_cmdline(cmd_args=None):
     p_cutout.add_argument('pos2', help='right position')
 
     p_cutout.add_argument('-o', '--out', help='output file name (by default prints fasta to stdout)')
-    p_cutout.add_argument('-f', '--fmt', help='format of file (default: autodetect)')
+    p_cutout.add_argument('--fmt', help='output format (default: autodetect from file extension)')
 
     p_print.add_argument('fname_anchor', help='anchor file name')
     p_print.add_argument('-v', '--verbose', help=msg, action='store_true')

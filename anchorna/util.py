@@ -90,7 +90,7 @@ class Anchor(collections.UserList):
     def medscore(self):
         return median(f.score for f in self)
 
-    def overlaps_with(self, a2):
+    def overlaps_in_a_simple_way_with(self, a2):
         def key(f): return '' if f.seqid == a1.refid else f.seqid
         a1 = self
         return (max(a1.ref.start, a2.ref.start) <= min(a1.ref.stop, a2.ref.stop) and
@@ -100,7 +100,7 @@ class Anchor(collections.UserList):
 
     def join_with(self, a2):
         a1 = self
-        if not a1.overlaps_with(a2):
+        if not a1.overlaps_in_a_simple_way_with(a2):
             raise ValueError('Cannot join anchors which do not overlap')
         if a1.ref.start <= a2.ref.start and a1.ref.stop >= a2.ref.stop:
             # a2 is contained in a1
@@ -142,11 +142,11 @@ class Anchor(collections.UserList):
                               above_thres=f1.above_thres or f2.above_thres)
                 flukes.append(fluke)
             anchor = Anchor(flukes, refid=a1.refid)
-            anchor._calculate_scores()
+            anchor._calculate_fluke_scores()
             return anchor
 
 
-    def _calculate_scores(self):
+    def _calculate_fluke_scores(self):
         words = {fluke.word for fluke in self if fluke.above_thres}
         for fluke in self.data + self.missing:
             fluke.score = median(corrscore(fluke.word, w) for w in words)
@@ -161,10 +161,8 @@ class Anchor(collections.UserList):
 
 
 class AnchorList(collections.UserList):
-    def __init__(self, data=None, **kw):
+    def __init__(self, data=None):
         super().__init__(data)
-        for k, v in kw.items():
-            setattr(self, k, v)
 
     def __str__(self):
         return self.tostr()
@@ -181,7 +179,7 @@ class AnchorList(collections.UserList):
     def merge_neighbor_anchors(self):
         while True:
             for a1, a2 in itertools.combinations(sorted(self, key=lambda a: a.minscore, reverse=True), 2):
-                if a1.overlaps_with(a2):
+                if a1.overlaps_in_a_simple_way_with(a2):
                     break
             else:
                 break
@@ -193,28 +191,19 @@ class AnchorList(collections.UserList):
         return self
 
     def remove_contradicting_anchors(self):
+        anchors = sorted(self, key=lambda a: a.minscore, reverse=True)
         removed_anchors = []
-        a1s = sorted(self, key=lambda a: a.minscore, reverse=True)
-        a2s = sorted(self, key=lambda a: a.minscore)
-        while True:
-            for a1, a2 in itertools.product(a1s, a2s):
-                if a1 == a2 or a1.minscore < a2.minscore:
-                    continue
+        while len(anchors) > 0:
+            a1 = anchors.pop(0)
+            for a2 in anchors:
+                assert a1 != a2 and a1.minscore >= a2.minscore
                 if a1.contradicts(a2):
-                    break
-            else:
-                break
-            # remove a2
-            # remove one of a1, a2
-            # if a1.minscore < a2.minscore:
-            #     a1, a2 = a2, a1
-            log.debug(f'Remove anchor {a2.ref.start}+{a2.ref.len} with min score {a2.minscore}, '
-                      f'keep anchor {a1.ref.start}+{a1.ref.len} with min score {a1.minscore}')
-            self.data.remove(a2)
-            a2s.remove(a2)
-            a1s.remove(a2)
-            removed_anchors.append(a2)
-        return AnchorList(removed_anchors)
+                    log.debug(f'Remove anchor {a2.ref.start}+{a2.ref.len} with min score {a2.minscore}, '
+                              f'keep anchor {a1.ref.start}+{a1.ref.len} with min score {a1.minscore}')
+                    self.data.remove(a2)
+                    anchors.remove(a2)
+                    removed_anchors.append(a2)
+        return AnchorList(sorted(removed_anchors, key=lambda a: a.ref.start))
 
     def convert2fts(self):
         return anchors2fts(self)

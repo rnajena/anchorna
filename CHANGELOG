@@ -1,0 +1,7 @@
+dev:
+  * refactor AnchorList.remove_contradicting_anchors method
+  * change name of thr_score option to thr_add_score
+  * deal with edgecase of multiple found words with the same score
+  * other minor changes
+v1.0.0:
+  * initial release
