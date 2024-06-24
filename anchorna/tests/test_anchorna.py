@@ -75,17 +75,15 @@ def test_anchorna_script_help():
 
 
 def test_reproduce_anchor_file_subset():
-    fname = files('anchorna.tests.data').joinpath('anchors_subset.gff')
-    try:
-        anchors2 = read_anchors(fname)
-    except FileNotFoundError:
-        warn(f'Did not find test file {fname}, create it')
-        anchors2 = None
     with _changetmpdir() as tmpdir:
         check('anchorna create --tutorial-subset')
-        check('anchorna go --no-pbar anchors.gff')
+        check('anchorna go --no-pbar anchors.gff --no-logging')
         anchors = read_anchors('anchors.gff')
-        if anchors2 is None:
+        fname = files('anchorna.tests.data').joinpath('anchors_subset.gff')
+        try:
+            anchors2 = read_anchors(fname)
+        except FileNotFoundError:
+            warn(f'Did not find test file {fname}, create it')
             import shutil
             shutil.copy(tmpdir / 'anchors.gff', fname)
             anchors2 = read_anchors(fname)
@@ -154,17 +152,15 @@ def test_anchorna_workflow_subset():
 
 @pytest.mark.slowtest
 def test_reproduce_anchor_file_complete():
-    fname = files('anchorna.tests.data').joinpath('anchors_complete.gff')
-    try:
-        anchors2 = read_anchors(fname)
-    except FileNotFoundError:
-        warn(f'Did not find test file {fname}, create it')
-        anchors2 = None
     with _changetmpdir() as tmpdir:
         check('anchorna create --tutorial')
-        check('anchorna go --no-pbar anchors.gff')
+        check('anchorna go --no-pbar anchors.gff --no-logging')
         anchors = read_anchors('anchors.gff')
-        if anchors2 is None:
+        fname = files('anchorna.tests.data').joinpath('anchors_complete.gff')
+        try:
+            anchors2 = read_anchors(fname)
+        except FileNotFoundError:
+            warn(f'Did not find test file {fname}, create it')
             import shutil
             shutil.copy(tmpdir / 'anchors.gff', fname)
             anchors2 = read_anchors(fname)

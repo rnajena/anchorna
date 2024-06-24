@@ -133,8 +133,12 @@ def _cmd_create(conf, tutorial=False, tutorial_subset=False):
         seqs.write(os.path.join(path, 'pesti_example.gff'))
 
 def _cmd_go(fname, fname_anchor, pbar=True, remove=True, continue_with=None,
-            removed_anchors_path=None, logconf=None, logfile=None, **kw):
-    _configure_logging(logconf, logfile)
+            removed_anchors_path=None,
+            logconf=None, logfile=None, no_logging=False, **kw):
+    if no_logging:
+        logging.disable(logging.CRITICAL)
+    else:
+        _configure_logging(logconf, logfile)
     log = logging.getLogger('anchorna')
     options = Options(**kw)
     log.info(f'anchorna go is called with arguments {fname=}, {fname_anchor=}, '
@@ -314,6 +318,7 @@ def run_cmdline(cmd_args=None):
     p_go.add_argument('--no-pbar', help='do not show progress bar', action='store_false', dest='pbar', default=argparse.SUPPRESS)
     p_go.add_argument('--no-remove', help='do not remove contradicting anchors', action='store_false', dest='remove', default=argparse.SUPPRESS)
     p_go.add_argument('--continue-with', help='only remove contradicting anchors from passed anchor list', default=argparse.SUPPRESS)
+    p_go.add_argument('--no-logging', action='store_true', help=argparse.SUPPRESS)  # for testing purposes
 
     g = p_go.add_argument_group('optional arguments', description='Use these flags to overwrite values in the config file.')
     features = [(int, ('w', 'maxshift')),
