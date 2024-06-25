@@ -53,7 +53,7 @@ jobs:
       - name: run test suite
         run: |
           mkdir empty; cd empty
-          pytest ../anchorna/tests --cov anchorna --cov-report=xml:$PWD/coverage.xml ${{ env.test_options }}
+          pytest ../anchorna/tests --cov anchorna --cov-report=xml:../coverage.xml ${{ env.test_options }}
       - name: upload coverage
         uses: codecov/codecov-action@v4
         with:
