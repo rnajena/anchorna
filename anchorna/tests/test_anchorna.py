@@ -147,6 +147,12 @@ def test_anchorna_workflow_subset():
         write_json(anchors, json)
         assert load_json(json) == anchors
 
+        # try to fix open log file in windows
+        import logging
+        log = logging.getLogger('anchorna')
+        for handler in log.handlers:
+            handler.close()
+
 
 @pytest.mark.slowtest
 def test_reproduce_anchor_file_complete():
