@@ -155,42 +155,6 @@ def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=None):
     return results
 
 
-# def worker(do_work, qinput, qres, **kw):
-#     while True:
-#         try:
-#             task = qinput.get_nowait()
-#         except:
-#             return
-#         result = do_work(task, **kw)
-#         qres.put(result)
-#     qres.put('finished')
-
-
-# class MyPool():
-#     def __init__(self, njobs):
-#         self.njobs = njobs
-#     def imap_unordered(self, do_work, tasks):
-#         qinput = multiprocessing.Queue()
-#         qres = multiprocessing.Queue()
-#         for t in tasks:
-#             qinput.put(t)
-#         ps = [multiprocessing.Process(target=worker, args=[do_work.func, qinput, qres], kwargs=do_work.keywords) for _ in range(self.njobs)]
-#         for p in ps:
-#             p.start()
-#         finish = 0
-#         while finish < len(tasks):
-#             res = qres.get()
-#             if res == 'finished':
-#                 finish += 1
-#             else:
-#                 yield res
-#         for p in ps:
-#             p.join()
-
-#     def terminate(self):
-#         pass
-
-
 def find_anchors_winlen(aas, options, indexrange=None, anchors=None, **kw):
     """
     Find multiple anchors in aa sequences for a specific word length
