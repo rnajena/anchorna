@@ -69,10 +69,13 @@ anchorna cutout anchors2.gff "ATG<" "A2>+10" -o pestiA3.fasta
 anchorna load anchors2.gff
 
 # Run anchorna on subsequences and combine results into a single anchor file
-# We are not satisfied with the long region (>1000 aa) without any anchors between anchors A52 and A53
-anchorna cutout anchors2.gff "A52>" "A53<" -o pesti_sub.sjson  # Need to use sjson format for now, to save the offsets
-anchorna go --fname pesti_sub.sjson --thr-quota 0.9 anchors_sub.gff  # adapt options
-# We found another 38 anchors and investigate these
+# We are not satisfied with the long region (>1000 aa) without any anchors,
+# find two anchors immediately before and after this "empty" region,
+# replace the "??" signs with the anchor numbers
+anchorna view anchors2.gff
+anchorna cutout anchors2.gff "A??>" "A??<" -o pesti_sub.sjson  # Need to use sjson format for now, to save the offsets
+anchorna go --fname pesti_sub.sjson --thr-quota-add-anchor 0.9 anchors_sub.gff  # adapt options
+# We found more anchors and investigate these
 anchorna print anchors_sub.gff
 anchorna view anchors_sub.gff
 # Finally we merge the two anchor files
