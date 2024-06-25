@@ -150,7 +150,7 @@ def _make_rgb_transparent(rgb, bg_rgb, alpha):
 cols = list(mcolors.TABLEAU_COLORS.values())
 to_hex(cols[0], 0.3)
 
-def jalview_features(anchors, mode='aa'):
+def jalview_features(anchors, mode='aa', score_use_fluke=None):
     """
     Write anchors to Jalview feature file
     """
@@ -161,22 +161,23 @@ def jalview_features(anchors, mode='aa'):
     #for winlen, *_, aaref, r in anchors:
     for k, a in enumerate(anchors):
         #for seqid, (score, i, j, _) in r.items():
+        poor = sum(f.poor for f in a)
         for j, f in enumerate(a):
+            if score_use_fluke is not None and f.score < score_use_fluke:
+                continue
             # anchor2	C_CSFV_KC533775	-1	130	150	anchorsim	1.0
             # anhcor100	D_BDV_NC_003679	-1	10	20	anchorxx
             wlen = a.ref.len
-            score_ = f.score / a.maxscore
+            score_ = max(1, f.median_score) / a.maxscore
             c = to_hex(_make_rgb_transparent(cols[k % len(cols)], 'white', score_)).strip('#')
-
-            al = f'anchor{k}_s{f.score}'
-            miss = f'misses:{len(a.missing)}'
+            al = f'anchor{k}_s{f.median_score}'
             header.append(
                 f'{al}\t{c}\n'
                 )
             i = _apply_mode(f.start, f.offset, mode)
             j = _apply_mode(f.stop, f.offset, mode)
             content.append(
-                f'{a.ref.word[:5]} w{wlen} {miss}\t{f.seqid}\t-1\t{i+1}\t{j}\t{al}\n')
+                f'{a.ref.word[:5]} w{wlen} poor:{poor}\t{f.seqid}\t-1\t{i+1}\t{j}\t{al}\n')
                  #f'{a.ref.str[:5]} w{wlen} {miss}\t{f.id}\t-1\t{i+1}\t{i+wlen}\t{al}\n' if mode == 'default' else
                  #f'{a.ref.str[:5]} w{wlen} {miss}\t{f.id}\t-1\t{i+o+1}\t{i+o+wlen}\t{al}\n' if mode == 'offset' else
                  #f'{a.ref.str[:5]} w{wlen} {miss}\t{f.id}\t-1\t{3*i+1}\t{3*i+3*wlen}\t{al}\n' if mode == 'seq' else

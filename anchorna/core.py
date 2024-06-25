@@ -1,7 +1,9 @@
 # (C) 2023, Tom Eulenfeld, MIT license
 
+from functools import partial
+from heapq import heappush, heappop
 import logging
-from statistics import median
+import multiprocessing
 from warnings import warn
 
 from sugar import BioBasket
@@ -9,7 +11,6 @@ from sugar.data import submat
 from tqdm import tqdm
 
 from anchorna.util import _apply_mode, corrscore, Anchor, AnchorList, Fluke
-
 
 log = logging.getLogger('anchorna')
 
@@ -34,9 +35,9 @@ def maxes(a, key=None, default=None):
     return max_list
 
 
-def shift_and_find_best_word(seq, words, starti, w, sm, maxshift=None, maxshift_right=None):
+def shift_and_find_best_word(seq, word, starti, w, sm, maxshift=None, maxshift_right=None):
     """
-    Find position of the most similar word in a sequence compared to a set of words
+    Find position of the most similar word in a sequence
 
     :return: tuple with similarity and index
     """
@@ -45,7 +46,7 @@ def shift_and_find_best_word(seq, words, starti, w, sm, maxshift=None, maxshift_
         maxshift = len(seq)
     if maxshift_right is None:
         maxshift_right = maxshift
-    siminds = maxes([(max(corrscore(seq[i:i+w], word, sm=sm) for word in words), i)
+    siminds = maxes([(corrscore(seq[i:i+w], word, sm=sm), i)
                       for i in range(max(0, starti-maxshift_right),
                                      min(len(seq)-w, starti+maxshift+1))],
                      default=(0, None))
@@ -55,44 +56,72 @@ def shift_and_find_best_word(seq, words, starti, w, sm, maxshift=None, maxshift_
     return sim, ind
 
 
-def anchor_for_words(i, words, aas, w, refid, maxshift, thr_add_score, thr_quota_score, thr_quota,
-                     scoring, method='default'):
+def anchor_for_pos(i, aas, w, refid, maxshift,
+                   score_add_word, thr_quota_add_anchor, thr_score_add_anchor,
+                   scoring):
     """
-    Find the most similar not yet found word in a list of sequences and add it to words set
+    Find an anchor for a specific position in the reference sequence
 
-    If no good word is found anymore, return a single anchor.
+    Return anchor or None
+
+    1) Add fluke at position i for refid to anchor, set word to refword, set words set to {word}
+    2) Add all other ids to todo list
+    3) Until todo list is empty
+      a) find best (score, index j) with word for each sequence in todo and add (score, j, seqid) to heap
+      b) pop (score, j, seqid) pair with highest score from heap, until empty
+        - if seqid not in todo -> continue 3b)
+        - add to anchor, remove seqid from todos
+        - if score < thr_score_add_anchor, check if thr_quota_add_anchor can still be fullfilled,
+          otherwise return None (no anchor found)
+        - if new word not in words, add it to words and set as new word, break loop 3b)
+    4) Recalculate score, create and return anchor
     """
-    assert thr_quota_score >= thr_add_score
     winlen = w
     aaref = [aa for aa in aas if aa.id == refid][0]
     assert aaref == aas[0]
-    res = []
-    nfails = 0
-    for aa in aas:
-        # if aa.id == seqrefid:
-        #     continue
-        maxshiftl = maxshift + max(0, len(aa) - len(aaref))
-        maxshiftr = maxshift + max(0, len(aaref) - len(aa))
-        score, start = shift_and_find_best_word(aa, words, i, winlen, submat(scoring), maxshiftl, maxshiftr)
-        if start is None:
-            raise ValueError('zero length sequence - that should not happen')
-        if score < thr_quota_score:
-            nfails += 1
-            # short way out 50 % fail
-            if nfails / len(aas) >= 0.5:
-                return
-        res.append((score, start, str(aa)[start:start+winlen], aa, score >= thr_add_score))
-    if method != 'simple':
-        for score, start, word, aa_, above_thres in sorted(res, reverse=True):
-            if above_thres and word not in words:
-                words.add(word)
-                return 'continue'
-    if nfails / len(aas) > 1 - thr_quota:
+    refword = str(aaref)[i:i+winlen]
+    refscore = corrscore(refword, refword, sm=submat(scoring))
+    if refscore < thr_score_add_anchor:
+        log.warning(f'The score of word {refword} with itself is {refscore}, smaller than {thr_score_add_anchor=}')
         return
+    word = refword
+    words = {word}
+    todo = set(aas[1:].ids)
+    aas = aas.d
+    toadd = []
+    res = [(refscore, i, refid)]
+    nfails = 0
+    while len(todo) > 0:
+        for id_ in todo:
+            aa = aas[id_]
+            maxshiftl = maxshift + max(0, len(aa) - len(aaref))
+            maxshiftr = maxshift + max(0, len(aaref) - len(aa))
+            score, j = shift_and_find_best_word(aa, word, i, winlen, submat(scoring), maxshiftl, maxshiftr)
+            if j is None:
+                raise ValueError('zero length sequence - that should not happen')
+            heappush(toadd, (-score, j, id_))
+        while len(toadd) > 0:
+            score, j, id_ = heappop(toadd)
+            if id_ not in todo:
+                continue
+            score = -score
+            word = str(aas[id_])[j:j+winlen]
+            res.append((score, j, id_))
+            todo.discard(id_)
+            if score < thr_score_add_anchor:
+                nfails += 1
+                if nfails / len(aas) > 1 - thr_quota_add_anchor:
+                    return
+            if word not in words and score >= score_add_word:
+                words.add(word)
+                break
+        else:
+            assert len(todo) == 0
     flukes = []
-    for _, start, word, aa, above_thres in res:
-        # score = median(corrscore(word, w) for w in words)  # this is done in anchor._calculate_scores()
-        fluke=Fluke(seqid=aa.id, score=None, start=start, offset=aa.meta.get('offset'), stop=start+winlen, word=word, above_thres=above_thres)
+    for score, j, id_ in res:
+        aa = aas[id_]
+        fluke=Fluke(seqid=aa.id, score=None, start=j, offset=aa.meta.get('offset'),
+                    stop=j+winlen, word=str(aa)[j:j+winlen], poor=score<score_add_word)
         flukes.append(fluke)
     assert flukes[0].seqid == refid
     anchor = Anchor(flukes, refid=refid)
@@ -100,7 +129,69 @@ def anchor_for_words(i, words, aas, w, refid, maxshift, thr_add_score, thr_quota
     return anchor
 
 
-def find_anchors_winlen(aas, options, indexrange=None, anchors=None, pbar=False):
+def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=None):
+    if results is None:
+        results = []
+    if njobs == 0:
+        log.info('sequential processing')
+        mymap = map(do_work, tasks)
+    else:
+        cpus = multiprocessing.cpu_count()
+        njobs = min(cpus, njobs) if njobs > 0 else cpus + njobs
+        log.info(f'use {njobs} cores in parallel')
+        pool = multiprocessing.Pool(njobs)
+        mymap = pool.imap_unordered(do_work, tasks)
+    if pbar:
+        desc = '{:3d} anchors found, check candidates'
+        pbar = tqdm(desc=desc.format(0), total=len(tasks))
+    for res in mymap:
+        if res is not None:
+            results.append(res)
+        if pbar:
+            if pbar.update():
+                pbar.set_description(desc.format(len(results)))
+    if njobs != 0:
+        pool.terminate()
+    return results
+
+
+# def worker(do_work, qinput, qres, **kw):
+#     while True:
+#         try:
+#             task = qinput.get_nowait()
+#         except:
+#             return
+#         result = do_work(task, **kw)
+#         qres.put(result)
+#     qres.put('finished')
+
+
+# class MyPool():
+#     def __init__(self, njobs):
+#         self.njobs = njobs
+#     def imap_unordered(self, do_work, tasks):
+#         qinput = multiprocessing.Queue()
+#         qres = multiprocessing.Queue()
+#         for t in tasks:
+#             qinput.put(t)
+#         ps = [multiprocessing.Process(target=worker, args=[do_work.func, qinput, qres], kwargs=do_work.keywords) for _ in range(self.njobs)]
+#         for p in ps:
+#             p.start()
+#         finish = 0
+#         while finish < len(tasks):
+#             res = qres.get()
+#             if res == 'finished':
+#                 finish += 1
+#             else:
+#                 yield res
+#         for p in ps:
+#             p.join()
+
+#     def terminate(self):
+#         pass
+
+
+def find_anchors_winlen(aas, options, indexrange=None, anchors=None, **kw):
     """
     Find multiple anchors in aa sequences for a specific word length
     """
@@ -113,23 +204,9 @@ def find_anchors_winlen(aas, options, indexrange=None, anchors=None, pbar=False)
     aaref = aas[0]
     if indexrange is None:
         indexrange = list(range(len(aaref)-options.w))
-    if anchors is None:
-        anchors = []
-    if pbar:
-        desc = '{:3d} anchors found, check candidates'
-        pbar = tqdm(desc=desc.format(0), total=len(indexrange))
-    for i in indexrange:
-        words = {str(aaref)[i:i+options.w]}
-        anchor = 'continue'
-        while anchor == 'continue':
-            anchor = anchor_for_words(i, words, aas, **options)
-        if anchor is not None:
-            anchors.append(anchor)
-        if pbar:
-            if pbar.update():
-                pbar.set_description(desc.format(len(anchors)))
-    anchors = sorted(anchors, key=lambda a: a.ref.start)
-    return AnchorList(anchors)
+    do_work = partial(anchor_for_pos, aas=aas, **options)
+    anchors = _start_parallel_jobs(indexrange, do_work, anchors, **kw)
+    return AnchorList(anchors).sort()
 
 
 def find_my_anchors(seqs, options, remove=True, continue_with=None, **kw):
@@ -166,9 +243,8 @@ def find_my_anchors(seqs, options, remove=True, continue_with=None, **kw):
         log.info(f'After removal of contradicting anchors {len(anchors)} anchors left')
     else:
         removed_anchors = None
-    anchors.data = sorted(anchors, key=lambda a: a.ref.start)
     assert all([f[0].seqid == options.refid for f in anchors])
-    return anchors, removed_anchors
+    return anchors.sort(), removed_anchors
 
 
 def _split_cutout_pos(pos, mode, seqs, anchors):
@@ -225,7 +301,7 @@ def _transform_cutout_index(A, B, C, id_, seq, mode):
     return i
 
 
-def cutout(seqs, anchors, pos1, pos2, mode='seq'):
+def cutout(seqs, anchors, pos1, pos2, mode='seq', score_use_fluke=None):
     """
     Cutout subsequences from pos1 to pos2 (i.e. between two anchors)
     """
@@ -235,7 +311,11 @@ def cutout(seqs, anchors, pos1, pos2, mode='seq'):
     seqs2 = BioBasket()
     for id_ in seqs:
         if (l_is_real_anchor and id_ not in la) or (r_is_real_anchor and id_ not in ra):
-            # no fluke for this sequence
+            raise ValueError(f'No fluke found for sequence {id_}, this should not happen, contact devs')
+        if score_use_fluke is not None and (
+                (l_is_real_anchor and la[id_].score < score_use_fluke) or
+                (r_is_real_anchor and ra[id_].score < score_use_fluke)):
+            warn(f'do not use sequence {id_}, score is below {score_use_fluke=}')
             continue
         i = _transform_cutout_index(la, lb, lc, id_, seqs[id_], mode)
         j = _transform_cutout_index(ra, rb, rc, id_, seqs[id_], mode)
@@ -266,4 +346,4 @@ def combine(lot_of_anchors):
                 f.start += doff // 3
                 f.stop += doff // 3
         anchors |= set(nans)
-    return AnchorList(sorted(anchors, key=lambda a: a.ref.start))
+    return AnchorList(anchors).sort()

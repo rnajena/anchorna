@@ -38,9 +38,10 @@ w = 5  # word length
 refid = "KC533775"
 maxshift = 100
 scoring = "blosum62"
-thr_add_score = 19  # add fluke only if above this threshold
-thr_quota_score = 22  # count number of flukes with a score >= thr_quota_score
-thr_quota = 1  # discard anchor if portion of counted flukes is smaller than quota (1=100%)
+score_add_word = 22  # score to add a word to word set
+thr_quota_add_anchor = 1  # discard anchor if portion of counted flukes is smaller than quota (1=100%)
+thr_score_add_anchor = 22  # count number of flukes with a score >= thr_quota_score
+score_use_fluke = 22  # score to use fluke in export, view, cutout commands, can be set on command line
 
 removed_anchors_path = "removed_anchors_{}.gff"  # turn off with "none", alternatively delete this line
 logfile = "anchorna.log"  # turn off with "none", alternatively delete this line
@@ -132,7 +133,7 @@ def _cmd_create(conf, tutorial=False, tutorial_subset=False):
         path = os.path.dirname(conf)
         seqs.write(os.path.join(path, 'pesti_example.gff'))
 
-def _cmd_go(fname, fname_anchor, pbar=True, remove=True, continue_with=None,
+def _cmd_go(fname, fname_anchor, pbar=True, njobs=0, remove=True, continue_with=None,
             removed_anchors_path=None,
             logconf=None, logfile=None, no_logging=False, **kw):
     if no_logging:
@@ -140,6 +141,7 @@ def _cmd_go(fname, fname_anchor, pbar=True, remove=True, continue_with=None,
     else:
         _configure_logging(logconf, logfile)
     log = logging.getLogger('anchorna')
+    kw.pop('score_use_fluke', None)
     options = Options(**kw)
     log.info(f'anchorna go is called with arguments {fname=}, {fname_anchor=}, '
              f'{remove=}, {continue_with=}, {removed_anchors_path=}')
@@ -148,7 +150,7 @@ def _cmd_go(fname, fname_anchor, pbar=True, remove=True, continue_with=None,
     if continue_with is not None:
         continue_with = read_anchors(continue_with)
     anchors, removed_anchors = find_my_anchors(
-        seqs, options, remove=remove, continue_with=continue_with, pbar=pbar)
+        seqs, options, remove=remove, continue_with=continue_with, pbar=pbar, njobs=njobs)
     rap = removed_anchors_path
     if remove:
         if rap is None or rap.lower() in ('none', 'null'):
@@ -172,26 +174,26 @@ def _cmd_print(fname_anchor, verbose=False, mode='aa'):
 def _cmd_load(fname_anchor):
     _start_ipy(read_anchors(fname_anchor))
 
-def _cmd_export(fname_anchor, out, mode='aa'):
+def _cmd_export(fname_anchor, out, mode='aa', score_use_fluke=None):
     assert mode in ('seq', 'cds', 'aa')
     anchors = load_selected_anchors(fname_anchor)
-    outstr = jalview_features(anchors, mode=mode)
+    outstr = jalview_features(anchors, mode=mode, score_use_fluke=score_use_fluke)
     if out is None:
         print(outstr)
     else:
         with open(out, 'w') as f:
             f.write(outstr)
 
-def _cmd_view(fname_anchor, fname, mode='aa', align=None):
+def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
     assert mode in ('seq', 'cds', 'aa')
     with tempfile.TemporaryDirectory(prefix='anchorna') as tmpdir:
         fname_export = Path(tmpdir) / 'jalview_features.txt'
         fnameseq = Path(tmpdir) / 'aa_or_seq_or_cds.fasta'
-        _cmd_export(fname_anchor, fname_export, mode=mode)
+        _cmd_export(fname_anchor, fname_export, mode=mode, score_use_fluke=score_use_fluke)
         seqs = read(fname)
         if mode != 'seq':
             anchors = read_anchors(fname_anchor)
-            offsets = {f.seqid: f.offset for anchor in anchors for f in (anchor.data + anchor.missing)}
+            offsets = {f.seqid: f.offset for anchor in anchors for f in anchor}
             for seq in seqs:
                 seq.data = seq.data[offsets[seq.id]:]
             if mode == 'aa':
@@ -199,8 +201,6 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None):
         if align:
             anchors = read_anchors(fname_anchor)
             anchor = anchors[int(align.lower().removeprefix('a'))]
-            anchor.data += anchor.missing
-            anchor.missing = []
             start = max(_apply_mode(fluke.start, fluke.offset, mode=mode) for fluke in anchor)
             for seq in seqs:
                 fluke = anchor.d[seq.id]
@@ -213,11 +213,11 @@ def _cmd_combine(fname_anchor, out):
     anchors = combine(lot_of_anchors)
     anchors.write(out)
 
-def _cmd_cutout(fname, fname_anchor, pos1, pos2, out, fmt, mode='seq'):
+def _cmd_cutout(fname, fname_anchor, pos1, pos2, out, fmt, mode='seq', score_use_fluke=None):
     assert mode in ('seq', 'cds', 'aa')
     seqs = read(fname)
     anchors = load_selected_anchors(fname_anchor)
-    seqs2 = cutout(seqs, anchors, pos1, pos2, mode=mode)
+    seqs2 = cutout(seqs, anchors, pos1, pos2, mode=mode, score_use_fluke=score_use_fluke)
     if out is None:
         print(seqs2.tofmtstr(fmt or 'fasta'))
     else:
@@ -239,9 +239,9 @@ def run(command, conf=None, pdb=False, **args):
             conf = {}
     else:
         conf = {}
-    if command in ('cutout', 'view'):
-        # ignore all config settings except fname
-        conf = {'fname': conf['fname']} if 'fname' in conf else {}
+    if command in ('cutout', 'view', 'export'):
+        # ignore all config settings except fname, score_use_fluke
+        conf = {k: conf[k] for k in ('fname', 'score_use_fluke') if k in conf}
     # Populate args with conf, but prefer args
     conf.update(args)
     args = conf
@@ -313,23 +313,26 @@ def run_cmdline(cmd_args=None):
     for p in (p_create, p_go, p_cutout, p_view):
         p.add_argument('-c', '--conf', default='anchorna.conf', help='configuration file to use (default: anchorna.conf)')
     p_create.add_argument('--tutorial', action='store_true', help='copy GFF sequence file for tutorial')
-    p_create.add_argument('--tutorial-subset', action='store_true', help=argparse.SUPPRESS)  # for testing purposes
+    p_create.add_argument('--tutorial-subset', action='store_true', help=argparse.SUPPRESS, default=argparse.SUPPRESS)  # for testing purposes
     p_go.add_argument('fname_anchor', help='anchor file name (GFF output)')
+    p_go.add_argument('--njobs', help='number of jobs to use', type=int, default=argparse.SUPPRESS)
     p_go.add_argument('--no-pbar', help='do not show progress bar', action='store_false', dest='pbar', default=argparse.SUPPRESS)
     p_go.add_argument('--no-remove', help='do not remove contradicting anchors', action='store_false', dest='remove', default=argparse.SUPPRESS)
     p_go.add_argument('--continue-with', help='only remove contradicting anchors from passed anchor list', default=argparse.SUPPRESS)
-    p_go.add_argument('--no-logging', action='store_true', help=argparse.SUPPRESS)  # for testing purposes
+    p_go.add_argument('--no-logging', action='store_true', help=argparse.SUPPRESS, default=argparse.SUPPRESS)  # for testing purposes
 
     g = p_go.add_argument_group('optional arguments', description='Use these flags to overwrite values in the config file.')
     features = [(int, ('w', 'maxshift')),
                 (str, ('fname', 'refid', 'scoring', 'logfile', 'removed-anchors-path')),
-                (float, ('thr-add-score', 'thr-quota-score', 'thr-quota'))]
+                (float, ('score-add-word', 'thr-quota-add-anchor', 'thr-score-add-anchor'))]
     for type_, fs in features:
         for f in fs:
             g.add_argument('--' + f, default=argparse.SUPPRESS, type=type_)
-    for p in (p_cutout, p_view):
+    for p in (p_cutout, p_export, p_view):
         g = p.add_argument_group('optional arguments', description='Use these flags to overwrite values in the config file.')
-        g.add_argument('--fname', default=argparse.SUPPRESS)
+        if p != p_export:
+            g.add_argument('--fname', default=argparse.SUPPRESS)
+        g.add_argument('--score-use-fluke', default=argparse.SUPPRESS, type=int)
 
 
     p_export.add_argument('fname_anchor', help='anchor file name')
