@@ -56,13 +56,14 @@ def shift_and_find_best_word(seq, word, starti, w, sm, maxshift=None, maxshift_r
     return sim, ind
 
 
-def anchor_for_pos(i, aas, w, refid, maxshift,
-                   score_add_word, thr_quota_add_anchor, thr_score_add_anchor,
-                   scoring):
+def anchor_at_pos(i, aas, w, refid, maxshift,
+                  score_add_word, thr_quota_add_anchor, thr_score_add_anchor,
+                  scoring):
     """
-    Find an anchor for a specific position in the reference sequence
+    Find an anchor for a specific position i in the reference sequence refid
 
-    Return anchor or None
+    Return anchor or None, for descitption of keyowrds,
+    see example configuration file.
 
     1) Add fluke at position i for refid to anchor, set word to refword, set words set to {word}
     2) Add all other ids to todo list
@@ -71,7 +72,7 @@ def anchor_for_pos(i, aas, w, refid, maxshift,
       b) pop (score, j, seqid) pair with highest score from heap, until empty
         - if seqid not in todo -> continue 3b)
         - add to anchor, remove seqid from todos
-        - if score < thr_score_add_anchor, check if thr_quota_add_anchor can still be fullfilled,
+        - if score < thr_score_add_anchor, check if thr_quota_add_anchor can still be fulfilled,
           otherwise return None (no anchor found)
         - if new word not in words, add it to words and set as new word, break loop 3b)
     4) Recalculate score, create and return anchor
@@ -84,8 +85,7 @@ def anchor_for_pos(i, aas, w, refid, maxshift,
     if refscore < thr_score_add_anchor:
         log.warning(f'The score of word {refword} with itself is {refscore}, smaller than {thr_score_add_anchor=}')
         return
-    word = refword
-    words = {word}
+    words = {refword}
     todo = set(aas[1:].ids)
     aas = aas.d
     toadd = []
@@ -96,24 +96,24 @@ def anchor_for_pos(i, aas, w, refid, maxshift,
             aa = aas[id_]
             maxshiftl = maxshift + max(0, len(aa) - len(aaref))
             maxshiftr = maxshift + max(0, len(aaref) - len(aa))
-            score, j = shift_and_find_best_word(aa, word, i, winlen, submat(scoring), maxshiftl, maxshiftr)
+            score, j = shift_and_find_best_word(aa, refword, i, winlen, submat(scoring), maxshiftl, maxshiftr)
             if j is None:
                 raise ValueError('zero length sequence - that should not happen')
             heappush(toadd, (-score, j, id_))
         while len(toadd) > 0:
             score, j, id_ = heappop(toadd)
+            score = -score
             if id_ not in todo:
                 continue
-            score = -score
-            word = str(aas[id_])[j:j+winlen]
-            res.append((score, j, id_))
-            todo.discard(id_)
             if score < thr_score_add_anchor:
                 nfails += 1
                 if nfails / len(aas) > 1 - thr_quota_add_anchor:
                     return
-            if word not in words and score >= score_add_word:
-                words.add(word)
+            refword = str(aas[id_])[j:j+winlen]
+            res.append((score, j, id_))
+            todo.discard(id_)
+            if refword not in words and score >= score_add_word:
+                words.add(refword)
                 break
         else:
             assert len(todo) == 0
@@ -155,25 +155,27 @@ def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=None):
     return results
 
 
-def find_anchors_winlen(aas, options, indexrange=None, anchors=None, **kw):
+def find_anchors_winlen(aas, w, refid, indexrange=None, anchors=None, njobs=0, pbar=None, **kw):
     """
     Find multiple anchors in aa sequences for a specific word length
     """
     for i, aa in enumerate(aas):
-        if aa.id == options.refid:
+        if aa.id == refid:
             break
     else:
-        raise ValueError(f'No sequence with ref id {options.refid}')
+        raise ValueError(f'No sequence with ref id {refid}')
     aas.insert(0, aas.pop(i))
     aaref = aas[0]
     if indexrange is None:
-        indexrange = list(range(len(aaref)-options.w))
-    do_work = partial(anchor_for_pos, aas=aas, **options)
-    anchors = _start_parallel_jobs(indexrange, do_work, anchors, **kw)
+        indexrange = list(range(len(aaref)-w))
+    do_work = partial(anchor_at_pos, aas=aas, w=w, refid=refid, **kw)
+    anchors = _start_parallel_jobs(indexrange, do_work, anchors, njobs=njobs, pbar=pbar)
+    assert all([f[0].seqid == refid for f in anchors])
     return AnchorList(anchors).sort()
 
 
-def find_my_anchors(seqs, options, remove=True, continue_with=None, **kw):
+def find_my_anchors(seqs, remove=True, aggressive_remove=True,
+                    continue_with=None, **kw):
     """
     Find and return anchors in CDS region of nucleotide sequences
     """
@@ -195,19 +197,18 @@ def find_my_anchors(seqs, options, remove=True, continue_with=None, **kw):
             log.warning('Did not found CDS annotation or offset for at least one sequence, do not translate')
             aas = seqs
         log.debug('result of translation are {}'.format(aas.tostr(h=0)))
-        log.info(f'find anchors for word length {options.w}')
-        anchors = find_anchors_winlen(aas, options, **kw)
-        log.info(f'found {len(anchors)} anchors for word length {options.w}')
+        log.info('find anchors for specified word length')
+        anchors = find_anchors_winlen(aas, **kw)
+        log.info(f'found {len(anchors)} anchors')
         anchors = anchors.merge_neighbor_anchors()
         log.info(f'merged into {len(anchors)} anchors')
     else:
         anchors = continue_with
     if remove:
-        removed_anchors = anchors.remove_contradicting_anchors()
+        removed_anchors = anchors.remove_contradicting_anchors(aggressive=aggressive_remove)
         log.info(f'After removal of contradicting anchors {len(anchors)} anchors left')
     else:
         removed_anchors = None
-    assert all([f[0].seqid == options.refid for f in anchors])
     return anchors.sort(), removed_anchors
 
 
@@ -302,7 +303,7 @@ def combine(lot_of_anchors):
     for nans in lot_of_anchors:
         if len(set(nans) & anchors) > 0:
             ids = ', '.join(a.id for a in nans & anchors)
-            raise ValueError(f'Anchors {ids} exits in multiple files')
+            raise ValueError(f'Anchors {ids} exist in multiple files')
         for anchor in nans:
             for f in anchor:
                 doff = f.offset - offsets[f.seqid]

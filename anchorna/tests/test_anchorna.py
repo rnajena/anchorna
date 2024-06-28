@@ -77,7 +77,7 @@ def test_anchorna_script_help():
 def test_reproduce_anchor_file_subset():
     with _changetmpdir() as tmpdir:
         check('anchorna create --tutorial-subset')
-        check('anchorna go --no-pbar anchors.gff --no-logging')
+        check('anchorna go --no-pbar anchors.gff --no-logging --no-aggressive-remove')
         anchors = read_anchors('anchors.gff')
         fname = files('anchorna.tests.data').joinpath('anchors_subset.gff')
         try:
@@ -98,16 +98,22 @@ def test_anchorna_workflow_subset():
         assert '' == check('anchorna create')
         fname_seqs = tmpdir / 'pesti_example.gff'
         assert '' == check('anchorna create --tutorial-subset')
-        assert '' == check('anchorna go --no-pbar anchors.gff')
+        assert '' == check('anchorna go --no-pbar anchors.gff --no-aggressive-remove')
         assert 'A11' in check('anchorna print anchors.gff')
         assert 'F1' in check('anchorna print anchors.gff -v')
         out1 = check('anchorna combine anchors.gff|a5:a10|a8')
         out2 = check('anchorna combine anchors.gff|a5,a6,a7,a9')
         assert out1 == out2
-        assert 'anchor0' in check('anchorna export anchors.gff')
-        assert 'anchor0' in check('anchorna export -m seq anchors.gff')
-        assert 'anchor0' in check('anchorna export -m aa anchors.gff')
-        assert 'anchor0' in check('anchorna export -m cds anchors.gff')
+        assert 'anchor0' in check('anchorna export --jalview anchors.gff')
+        assert 'anchor0' in check('anchorna export --jalview -m seq anchors.gff')
+        assert 'anchor0' in check('anchorna export --jalview -m aa anchors.gff')
+        assert '' in check('anchorna export --jalview -m cds anchors.gff -o test_jalview.txt')
+        assert 'anchorna' in check('anchorna export anchors.gff')
+        assert 'anchorna' in check('anchorna export -m seq anchors.gff')
+        assert 'anchorna' in check('anchorna export -m aa anchors.gff')
+        assert '' in check('anchorna export -m cds anchors.gff -o test_anchor_export.gff')
+        with pytest.raises(IOError):
+            read_anchors('test_anchor_export.gff')
         with patch('subprocess.run'):  # we do not want to actually start jalview here
             assert '' == check('anchorna view anchors.gff')
             assert '' == check('anchorna view anchors.gff --align a1')
@@ -126,19 +132,19 @@ def test_anchorna_workflow_subset():
 
         fname = tmpdir / 'pesti_test_cutout.sjson'
         assert '' == check(f'anchorna cutout anchors.gff a0> a2< -o {fname}')
-        assert '' == check(f'anchorna go --fname {fname} --no-pbar anchors_cutout.gff')
+        assert '' == check(f'anchorna go --fname {fname} --no-pbar anchors_cutout.gff --no-aggressive-remove')
         assert '' == check('anchorna combine anchors.gff||a1 anchors_cutout.gff -o anchors_combined.gff')
         assert read_anchors('anchors_combined.gff') == anchors
 
         fname = tmpdir / 'pesti_test_cutout2.sjson'
         assert '' == check(f'anchorna cutout anchors.gff a6> a10< -o {fname}')
-        assert '' == check(f'anchorna go --fname {fname} --no-pbar anchors_cutout2.gff --maxshift=1000')
+        assert '' == check(f'anchorna go --fname {fname} --no-pbar anchors_cutout2.gff --maxshift=1000 --no-aggressive-remove')
         assert '' == check('anchorna combine anchors.gff||a7:a10 anchors_cutout2.gff -o anchors_combined2.gff')
         assert read_anchors('anchors_combined2.gff') == load_selected_anchors('anchors.gff')
 
         # check --no-remove option and --continue-with option
         assert '' == check('anchorna go --no-remove --no-pbar anchors2.gff')
-        assert '' == check('anchorna go --continue-with anchors2.gff --no-pbar anchors3.gff')
+        assert '' == check('anchorna go --continue-with anchors2.gff --no-pbar anchors3.gff --no-aggressive-remove')
         assert len(anchors) < len(read_anchors('anchors2.gff'))
         assert anchors == read_anchors('anchors3.gff')
 
@@ -158,7 +164,7 @@ def test_anchorna_workflow_subset():
 def test_reproduce_anchor_file_complete():
     with _changetmpdir() as tmpdir:
         check('anchorna create --tutorial')
-        check('anchorna go --no-pbar anchors.gff --no-logging --njobs=-1')
+        check('anchorna go --no-pbar anchors.gff --no-logging --njobs=-1 --no-aggressive-remove')
         anchors = read_anchors('anchors.gff')
         fname = files('anchorna.tests.data').joinpath('anchors_complete.gff')
         try:

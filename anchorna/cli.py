@@ -30,21 +30,22 @@ def _changedir(path):
         os.chdir(origin)
 
 
-EXAMPLE_TOML_CONFIG = """### Example configuration for anchorna go command in TOML format
-# The fname configuration value can be used by some other anchorna commands.
+EXAMPLE_TOML_CONFIG = """### Configuration for AnchoRNA in TOML format
 
 fname = "pesti_example.gff"
-w = 5  # word length
+w = 5                      # word length
 refid = "KC533775"
 maxshift = 100
 scoring = "blosum62"
-score_add_word = 22  # score to add a word to word set
-thr_quota_add_anchor = 1  # discard anchor if portion of counted flukes is smaller than quota (1=100%)
-thr_score_add_anchor = 22  # count number of flukes with a score >= thr_quota_score
-score_use_fluke = 22  # score to use fluke in export, view, cutout commands, can be set on command line
+score_add_word = 22        # score to add a word to word set
+                           # flukes with lower score are marked as "poor"
+thr_quota_add_anchor = 1   # discard anchor if quota is not met (1=100%)
+thr_score_add_anchor = 22  # score threshold for quota
+score_use_fluke = 22       # score to use fluke in export, view, cutout
+aggressive_remove = true   # turn aggressive remove mode on/off
 
 removed_anchors_path = "removed_anchors_{}.gff"  # turn off with "none", alternatively delete this line
-logfile = "anchorna.log"  # turn off with "none", alternatively delete this line
+logfile = "anchorna.log"   # turn off with "none", alternatively delete this line
 """
 
 
@@ -133,7 +134,7 @@ def _cmd_create(conf, tutorial=False, tutorial_subset=False):
         path = os.path.dirname(conf)
         seqs.write(os.path.join(path, 'pesti_example.gff'))
 
-def _cmd_go(fname, fname_anchor, pbar=True, njobs=0, remove=True, continue_with=None,
+def _cmd_go(fname, fname_anchor, pbar=True, continue_with=None,
             removed_anchors_path=None,
             logconf=None, logfile=None, no_logging=False, **kw):
     if no_logging:
@@ -142,17 +143,17 @@ def _cmd_go(fname, fname_anchor, pbar=True, njobs=0, remove=True, continue_with=
         _configure_logging(logconf, logfile)
     log = logging.getLogger('anchorna')
     kw.pop('score_use_fluke', None)
-    options = Options(**kw)
     log.info(f'anchorna go is called with arguments {fname=}, {fname_anchor=}, '
-             f'{remove=}, {continue_with=}, {removed_anchors_path=}')
-    log.info(f'{options=}')
+             f'{continue_with=}, {removed_anchors_path=}')
+    log.info(f'options={kw}')
     seqs = read(fname)
     if continue_with is not None:
         continue_with = read_anchors(continue_with)
     anchors, removed_anchors = find_my_anchors(
-        seqs, options, remove=remove, continue_with=continue_with, pbar=pbar, njobs=njobs)
+        seqs, continue_with=continue_with, **kw)
+    # options = Options(**kw)
     rap = removed_anchors_path
-    if remove:
+    if removed_anchors is not None:
         if rap is None or rap.lower() in ('none', 'null'):
             log.debug('Do not save removed anchors')
         else:
@@ -174,22 +175,27 @@ def _cmd_print(fname_anchor, verbose=False, mode='aa'):
 def _cmd_load(fname_anchor):
     _start_ipy(read_anchors(fname_anchor))
 
-def _cmd_export(fname_anchor, out, mode='aa', score_use_fluke=None):
+def _cmd_export(fname_anchor, out, mode='aa', score_use_fluke=None, jalview=False):
     assert mode in ('seq', 'cds', 'aa')
     anchors = load_selected_anchors(fname_anchor)
-    outstr = jalview_features(anchors, mode=mode, score_use_fluke=score_use_fluke)
-    if out is None:
-        print(outstr)
+    if jalview:
+        outstr = jalview_features(anchors, mode=mode, score_use_fluke=score_use_fluke)
+        if out is None:
+            print(outstr)
+        else:
+            with open(out, 'w') as f:
+                f.write(outstr)
     else:
-        with open(out, 'w') as f:
-            f.write(outstr)
+        if out is None:
+            out = sys.stdout
+        anchors.write(out, mode=mode)
 
 def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
     assert mode in ('seq', 'cds', 'aa')
     with tempfile.TemporaryDirectory(prefix='anchorna') as tmpdir:
         fname_export = Path(tmpdir) / 'jalview_features.txt'
         fnameseq = Path(tmpdir) / 'aa_or_seq_or_cds.fasta'
-        _cmd_export(fname_anchor, fname_export, mode=mode, score_use_fluke=score_use_fluke)
+        _cmd_export(fname_anchor, fname_export, mode=mode, score_use_fluke=score_use_fluke, jalview=True)
         seqs = read(fname)
         if mode != 'seq':
             anchors = read_anchors(fname_anchor)
@@ -280,11 +286,11 @@ def run_cmdline(cmd_args=None):
     sub = parser.add_subparsers(title='commands', dest='command')
     sub.required = True
 
-    p_create = sub.add_parser('create', help=(msg:='create example configuration'), description=msg)
+    p_create = sub.add_parser('create', help=(msg:='create example configuration or tutorial'), description=msg)
     p_go = sub.add_parser('go', help=(msg:='find anchors and write them into anchor file'), description=msg)
     p_print = sub.add_parser('print', help=(msg:='print contents of anchor file'), description=msg)
     p_load = sub.add_parser('load', help=(msg:='load anchors into IPython session'), description=msg)
-    p_export = sub.add_parser('export', help=(msg:='export anchors into feature file to view them in Jalview'), description=msg)
+    p_export = sub.add_parser('export', help=(msg:='export anchors to gff file (possibly using different mode than aa) or a JalView feature file'), description=msg)
     p_view = sub.add_parser('view', help=(msg:='view anchors in JalView (i.e. call export and start JalView)'), description=msg)
     msg = 'combine (and select or remove) anchors from one file or different files'
     msg2 = ('An expression consists of a file name fname_anchor or fname_anchor|selection to select anchors or fname_anchor||expression to remove anchors, or fname|selection|expression. '
@@ -328,6 +334,7 @@ def run_cmdline(cmd_args=None):
     for type_, fs in features:
         for f in fs:
             g.add_argument('--' + f, default=argparse.SUPPRESS, type=type_)
+    g.add_argument('--aggressive-remove', action=argparse.BooleanOptionalAction, default=argparse.SUPPRESS)
     for p in (p_cutout, p_export, p_view):
         g = p.add_argument_group('optional arguments', description='Use these flags to overwrite values in the config file.')
         if p != p_export:
@@ -337,6 +344,7 @@ def run_cmdline(cmd_args=None):
 
     p_export.add_argument('fname_anchor', help='anchor file name')
     p_export.add_argument('-o', '--out', help='output file name (by default prints to stdout)')
+    p_export.add_argument('--jalview', action='store_true', help='export to JalView feature file instead of GFF file')
     p_view.add_argument('fname_anchor', help='anchor file name')
     p_view.add_argument('--align', help='align sequences at given anchor')
     p_combine.add_argument('fname_anchor', nargs='+', help='anchor file name')

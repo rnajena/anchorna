@@ -2,7 +2,6 @@
 import json
 import logging
 import sys
-from warnings import warn
 
 import matplotlib.colors as mcolors
 from matplotlib.colors import to_hex, to_rgb
@@ -14,17 +13,27 @@ from anchorna.util import _apply_mode, fts2anchors, Anchor, AnchorList, Fluke, O
 log = logging.getLogger('anchorna')
 
 
-def write_anchors(anchors, fname):
+def write_anchors(anchors, fname, mode=None):
     """
     Write anchors to GFF file
 
     Offsets are stored as comments.
+
+    :param str mode: if specified, transform indices and export to GFF file
+       The result is a file which should not be read in again with anchorna.
     """
     from anchorna import __version__
     fts = anchors.convert2fts()
     offsets = {ft.seqid: ft.meta._gff.pop('offset') for ft in fts}
     offsets_header = ''.join(f'#offset {seqid} {offset}\n' for seqid, offset in offsets.items())
-    header = f'#AnchoRNA anchor file\n#written with AnchoRNA v{__version__}\n' + offsets_header
+    if mode is None:
+        header = (
+            f'#AnchoRNA anchor file\n'
+            f'# written with AnchoRNA v{__version__}\n'
+            '# Indices are given for amino acids, the offset specifies the offset of index 0 from this file\n'
+            '# to the beginning of the original sequence (in nucleotites).\n' + offsets_header)
+    else:
+        header = f'# Anchors exported by AnchoRNA v{__version__} with mode {mode}\n'
     if fname is None:
         try:
             print(fts.tofmtstr('gff', header=header))
@@ -34,7 +43,7 @@ def write_anchors(anchors, fname):
         fts.write(fname, 'gff', header=header)
 
 
-def read_anchors(fname):
+def read_anchors(fname, check_header=True):
     """
     Read anchors from GFF file
 
@@ -45,11 +54,11 @@ def read_anchors(fname):
     offsets = {}
     for i, line in enumerate(comments):
         if i == 0:
-            if not line.startswith('##gff-version 3'):
-                warn(f'{fname} not a valid GFF file')
+            if check_header and not line.startswith('##gff-version 3'):
+                raise IOError(f'{fname} not a valid GFF file')
         elif i == 1:
-            if not line.startswith('#AnchoRNA'):
-                warn(f'{fname} not a valid anchor file')
+            if check_header and not line.startswith('#AnchoRNA'):
+                raise IOError(f'{fname} not a valid anchor file')
         elif line.startswith('#offset'):
             seqid, offset = line.split()[1:]
             offsets[seqid] = int(offset)
@@ -158,9 +167,7 @@ def jalview_features(anchors, mode='aa', score_use_fluke=None):
     anchors = sorted(anchors, key=lambda a: a.ref.start)
     content = []
     header = []
-    #for winlen, *_, aaref, r in anchors:
     for k, a in enumerate(anchors):
-        #for seqid, (score, i, j, _) in r.items():
         poor = sum(f.poor for f in a)
         for j, f in enumerate(a):
             if score_use_fluke is not None and f.score < score_use_fluke:
@@ -176,12 +183,6 @@ def jalview_features(anchors, mode='aa', score_use_fluke=None):
                 )
             i = _apply_mode(f.start, f.offset, mode)
             j = _apply_mode(f.stop, f.offset, mode)
-            content.append(
-                f'{a.ref.word[:5]} w{wlen} poor:{poor}\t{f.seqid}\t-1\t{i+1}\t{j}\t{al}\n')
-                 #f'{a.ref.str[:5]} w{wlen} {miss}\t{f.id}\t-1\t{i+1}\t{i+wlen}\t{al}\n' if mode == 'default' else
-                 #f'{a.ref.str[:5]} w{wlen} {miss}\t{f.id}\t-1\t{i+o+1}\t{i+o+wlen}\t{al}\n' if mode == 'offset' else
-                 #f'{a.ref.str[:5]} w{wlen} {miss}\t{f.id}\t-1\t{3*i+1}\t{3*i+3*wlen}\t{al}\n' if mode == 'seq' else
-                 #f'{a.ref.str[:5]} w{wlen} {miss}\t{f.id}\t-1\t{3*i+o+1}\t{3*i+o+3*wlen}\t{al}\n' if mode == 'seqoffset' else
-                 #None)
+            content.append(f'{f.word[:5]} w{wlen} poor:{poor}\t{f.seqid}\t-1\t{i+1}\t{j}\t{al}\n')
     header.append('\nSTARTFILTERS\nENDFILTERS\n\n')
     return ''.join(header) + ''.join(content)

@@ -1,7 +1,6 @@
 # (C) 2024, Tom Eulenfeld, MIT license
 
 import collections
-import itertools
 import logging
 from statistics import median
 from warnings import warn
@@ -140,7 +139,7 @@ class Anchor(collections.UserList):
                     assert correctl == l
                 if correctl != l:
                     # there is a gap between the flukes!
-                    # that might only be the case for "poor" flukes below the thresshold
+                    # that might only be the case for "poor" flukes below the threshold
                     # adapt the word
                     assert f1.poor and f2.poor
                     l = correctl
@@ -149,8 +148,6 @@ class Anchor(collections.UserList):
                         stop = start + l
                     else:
                         start = stop - l
-                # old way to calculate the score: estimation in the following way, we do not recalculate it
-                #score = f1.score * (1 - overlaplen / 2 / f1.len) + f2.score * (1 - overlaplen / 2 / f2.len)
                 nword = f1.word + f2.word[overlaplen:] if f1.start <= f2.start else f2.word + f1.word[overlaplen:]
                 assert len(nword) == l
                 fluke = Fluke(seqid=f1.seqid, score=None,
@@ -161,7 +158,6 @@ class Anchor(collections.UserList):
             anchor._calculate_fluke_scores()
             return anchor
 
-
     def _calculate_fluke_scores(self):
         words = {fluke.word for fluke in self if not fluke.poor}
         for fluke in self:
@@ -169,14 +165,14 @@ class Anchor(collections.UserList):
             fluke.score = max(scores)
             fluke.median_score = median(scores)
 
-
-    def contradicts(self, a2):
+    def contradicts(self, a2, aggressive=True):
         a1 = self
         if a1.ref.start > a2.ref.start:
             a1, a2 = a2, a1
         a1 = a1.good_flukes
         a2 = a2.good_flukes
-        return not all(f1.start <= f2.start for f1, f2 in zip(a1.sort(), a2.sort()))
+        attr = 'stop' if aggressive else 'start'
+        return not all(getattr(f1, attr) <= f2.start for f1, f2 in zip(a1.sort(), a2.sort()))
 
 
 class AnchorList(collections.UserList):
@@ -200,40 +196,49 @@ class AnchorList(collections.UserList):
         return self
 
     def merge_neighbor_anchors(self):
-        while True:
-            for a1, a2 in itertools.combinations(sorted(self, key=lambda a: a.minscore, reverse=True), 2):
-                if a1.overlaps_in_a_simple_way_with(a2):
+        self.sort()
+        already_merged = set()
+        ndata = []
+        for i, a1 in enumerate(self.data):
+            if a1 in already_merged:
+                continue
+            for a2 in self.data[i+1:]:
+                if a2 in already_merged:
+                    continue
+                if a1.ref.stop < a2.ref.start:
                     break
-            else:
-                break
-            # merge a1 and a2
-            self.data.remove(a1)
-            self.data.remove(a2)
-            a = a1.join_with(a2)
-            self.data.append(a)
+                if a1.overlaps_in_a_simple_way_with(a2):
+                    a1 = a1.join_with(a2)
+                    already_merged.add(a2)
+            ndata.append(a1)
+        self.data = ndata
         return self
 
-    def remove_contradicting_anchors(self):
+    def remove_contradicting_anchors(self, aggressive=True):
+        # The runtime of this method can be enhanced by using an interval tree or a nested containment list.
+        # But this method is not the bottleneck at all.
         anchors = sorted(self, key=lambda a: a.minscore, reverse=True)
-        removed_anchors = []
-        while len(anchors) > 0:
-            a1 = anchors.pop(0)
-            for a2 in anchors:
+        remove_anchors = set()
+        for i, a1 in enumerate(anchors):
+            if a1 in remove_anchors:
+                continue
+            for a2 in anchors[i+1:]:
+                if a2 in remove_anchors:
+                    continue
                 assert a1 != a2 and a1.minscore >= a2.minscore
-                if a1.contradicts(a2):
+                if a1.contradicts(a2, aggressive=aggressive):
                     log.debug(f'Remove anchor {a2.ref.start}+{a2.ref.len} with min score {a2.minscore}, '
                               f'keep anchor {a1.ref.start}+{a1.ref.len} with min score {a1.minscore}')
-                    self.data.remove(a2)
-                    anchors.remove(a2)
-                    removed_anchors.append(a2)
-        return AnchorList(removed_anchors).sort()
+                    remove_anchors.add(a2)
+        self.data = [anchor for anchor in self if anchor not in remove_anchors]
+        return AnchorList(remove_anchors).sort()
 
     def convert2fts(self):
         return anchors2fts(self)
 
-    def write(self, fname):
+    def write(self, fname, **kw):
         from anchorna.io import write_anchors
-        return write_anchors(self, fname)
+        return write_anchors(self, fname, **kw)
 
 
 def anchors2fts(anchors):
@@ -297,137 +302,3 @@ def fts2anchors(fts):
     if len(flukes) > 0:
         anchors.append(Anchor(flukes, refid=refid))
     return AnchorList(anchors)
-
-
-# def write_anchortxt(anchors, fname):
-#     with open(fname, 'w') as f:
-#         print('# winlen score index(aa) index(nt) aa nt', file=f)
-#         for a in anchors:
-#             print(*a[:-1], file=f)
-
-
-# def __write_jalview_features_simple(anchors, fnameaa, fnament, fnamecds):
-#     header = ('anchor\tlabel\n'
-#               'anchorsim\tscore|bad9f7|105191|absolute|0.7|1\n\n'
-#               'STARTFILTERS\n'
-#               'ENDFILTERS\n\n')
-#     anchors = sorted(anchors, key=lambda a: a.ref.start)
-#     contentnt = []
-#     contentcds = []
-#     contentaa = []
-#     #for winlen, *_, aaref, r in anchors:
-#     for a in anchors:
-#         #for seqid, (sim, i, j, _) in r.items():
-#         for f in a:
-#             # anchor2	C_CSFV_KC533775	-1	130	150	anchorsim	1.0
-#             # anhcor100	D_BDV_NC_003679	-1	10	20	anchorxx
-#             wlen = a.ref.len
-#             i = f.start
-#             j = f.seqstart
-#             contentaa.append(
-#                   #f'anchorsim\t{seqid}\t-1\t{i+1}\t{i+winlen}\tanchorsim\t{sim}\n'
-#                  f'{a.ref.str[:5]} w{wlen}\t{f.id}\t-1\t{i+1}\t{i+wlen}\tanchor\n')
-#             contentnt.append(
-#                   #f'anchorsim\t{seqid}\t-1\t{j+1}\t{j+3*winlen}\tanchorsim\t{sim}\n'
-#                  f'{a.ref.str[:5]} w{wlen}\t{f.id}\t-1\t{j+1}\t{j+3*wlen}\tanchor\n')
-#             contentcds.append(
-#                   #f'anchorsim\t{seqid}\t-1\t{j+1}\t{j+3*winlen}\tanchorsim\t{sim}\n'
-#                  f'{a.ref.str[:5]} w{wlen}\t{f.id}\t-1\t{3*i+1}\t{3*i+3*wlen}\tanchor\n')
-
-#     if fnameaa:
-#         with open(fnameaa, 'w') as f:
-#             f.write(header + ''.join(contentaa))
-#     if fnament:
-#         with open(fnament, 'w') as f:
-#             f.write(header + ''.join(contentnt))
-#     if fnamecds:
-#         with open(fnamecds, 'w') as f:
-#             f.write(header + ''.join(contentcds))
-
-
-# def __write_jalview_features(anchors, fnameaa, fnament, fnamecds):
-#     anchors = sorted(anchors, key=lambda a: a.ref.start)
-#     contentnt = []
-#     contentcds = []
-#     contentaa = []
-#     header = []
-#     #for winlen, *_, aaref, r in anchors:
-#     for k, a in enumerate(anchors):
-#         #for seqid, (score, i, j, _) in r.items():
-#         for j, f in enumerate(a):
-#             # anchor2	C_CSFV_KC533775	-1	130	150	anchorsim	1.0
-#             # anhcor100	D_BDV_NC_003679	-1	10	20	anchorxx
-#             wlen = a.ref.len
-#             i = f.start
-#             j = f.seqstart
-#             score_ = f.score / a.maxscore
-#             c = to_hex(make_rgb_transparent(cols[k % len(cols)], 'white', score_)).strip('#')
-
-#             al = f'anchor{k}_s{f.score}'
-#             miss = f'misses:{len(a.missing)}'
-#             header.append(
-#                 f'{al}\t{c}\n'
-#                 )
-#             contentaa.append(
-#                  f'{a.ref.str[:5]} w{wlen} {miss}\t{f.id}\t-1\t{i+1}\t{i+wlen}\t{al}\n')
-#             contentnt.append(
-#                  f'{a.ref.str[:5]} w{wlen} {miss}\t{f.id}\t-1\t{j+1}\t{j+3*wlen}\t{al}\n')
-#             contentcds.append(
-#                  f'{a.ref.str[:5]} w{wlen} {miss}\t{f.id}\t-1\t{3*i+1}\t{3*i+3*wlen}\t{al}\n')
-
-#     header.extend(['STARTFILTERS\n', 'ENDFILTERS\n\n'])
-#     header = ''.join(header)
-
-#     if fnameaa:
-#         with open(fnameaa, 'w') as f:
-#             f.write(header + ''.join(contentaa))
-#     if fnament:
-#         with open(fnament, 'w') as f:
-#             f.write(header + ''.join(contentnt))
-#     if fnamecds:
-#         with open(fnamecds, 'w') as f:
-#             f.write(header + ''.join(contentcds))
-
-
-# def __write_jalview_features(anchors, fnameaa, fnament, fnamecds):
-#     anchors = sorted(anchors, key=lambda a: a.ref.start)
-#     contentnt = []
-#     contentcds = []
-#     contentaa = []
-#     header = []
-#     #for winlen, *_, aaref, r in anchors:
-#     for k, a in enumerate(anchors):
-#         #for seqid, (score, i, j, _) in r.items():
-#         for j, f in enumerate(a):
-#             # anchor2	C_CSFV_KC533775	-1	130	150	anchorsim	1.0
-#             # anhcor100	D_BDV_NC_003679	-1	10	20	anchorxx
-#             wlen = a.ref.len
-#             i = f.start
-#             j = f.seqstart
-#             score_ = f.score / a.maxscore
-#             c = to_hex(make_rgb_transparent(cols[k % len(cols)], 'white', score_)).strip('#')
-
-#             al = f'anchor{k}_s{f.score}'
-#             miss = f'misses:{len(a.missing)}'
-#             header.append(
-#                 f'{al}\t{c}\n'
-#                 )
-#             contentaa.append(
-#                  f'{a.ref.str[:5]} w{wlen} {miss}\t{f.id}\t-1\t{i+1}\t{i+wlen}\t{al}\n')
-#             contentnt.append(
-#                  f'{a.ref.str[:5]} w{wlen} {miss}\t{f.id}\t-1\t{j+1}\t{j+3*wlen}\t{al}\n')
-#             contentcds.append(
-#                  f'{a.ref.str[:5]} w{wlen} {miss}\t{f.id}\t-1\t{3*i+1}\t{3*i+3*wlen}\t{al}\n')
-
-#     header.extend(['STARTFILTERS\n', 'ENDFILTERS\n\n'])
-#     header = ''.join(header)
-
-#     if fnameaa:
-#         with open(fnameaa, 'w') as f:
-#             f.write(header + ''.join(contentaa))
-#     if fnament:
-#         with open(fnament, 'w') as f:
-#             f.write(header + ''.join(contentnt))
-#     if fnamecds:
-#         with open(fnamecds, 'w') as f:
-#             f.write(header + ''.join(contentcds))

@@ -17,7 +17,6 @@ To install the latest release use the following command and replace `VERSION` wi
 
 ```
 pip install https://github.com/rnajena/anchorna/archive/refs/tags/VERSION.zip
-
 ```
 
 To install the development version in editable mode, clone the repository and install with `pip -e repo_path`.
@@ -43,7 +42,7 @@ anchorna print -v anchors.gff
 anchorna print --mode seq anchors.gff
 
 # View anchors in Jalview (amino acid sequences)
-anchorna export anchors.gff -o jalview_fts.txt
+anchorna export anchors.gff --jalview -o jalview_fts.txt
 sugar translate --cds pesti_example.gff -o pestiaa.fasta
 jalview pestiaa.fasta --features jalview_fts.txt
 # Instead of the above three lines we can just use anchorna view
