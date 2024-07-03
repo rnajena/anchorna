@@ -5,6 +5,6 @@ Find anchors in RNA/DNA sequences
 """
 
 from anchorna.core import combine, cutout, find_my_anchors
-from anchorna.io import read_anchors, jalview_features
+from anchorna.io import read_anchors
 
-__version__ = '1.0.2-dev'
+__version__ = '1.0.2-dev'  # Update README

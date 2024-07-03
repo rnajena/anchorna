@@ -4,6 +4,8 @@ dev:
   * add aggressive mode when removing contradicting anchors (now the default)
   * add export to GFF files
   * change names of some options
+  * add no_cds configuration parameter and --no-cds command line flag,
+    used to find anchors in non-coding and amino acid sequences
   * deal with edgecase of multiple found words with the same score
   * refactor AnchorList.remove_contradicting_anchors method
   * enhance runtime of merging anchors and removing anchors

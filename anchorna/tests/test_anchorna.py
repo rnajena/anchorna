@@ -40,15 +40,6 @@ def create_example_seqs_file():
 
 
 @contextlib.contextmanager
-def _changedir(path):
-    origin = Path().resolve()
-    try:
-        os.chdir(path)
-        yield
-    finally:
-        os.chdir(origin)
-
-@contextlib.contextmanager
 def _changetmpdir():
     origin = Path().resolve()
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -57,6 +48,7 @@ def _changetmpdir():
             yield Path(tmpdir)
         finally:
             os.chdir(origin)
+
 
 def check(cmd):
     args = cmd.split()
@@ -119,7 +111,6 @@ def test_anchorna_workflow_subset():
             assert '' == check('anchorna view anchors.gff --align a1')
 
         anchors = read_anchors('anchors.gff')
-        # assert len(anchors) == 15
 
         # test cutout
         assert '>' in check(f'anchorna cutout anchors.gff atg>+5 end-10 --fname {fname_seqs}')
@@ -158,6 +149,57 @@ def test_anchorna_workflow_subset():
         log = logging.getLogger('anchorna')
         for handler in log.handlers:
             handler.close()
+
+
+def test_anchorna_workflow_subset_poor():
+    with _changetmpdir() as tmpdir:
+        assert '' == check('anchorna create')
+        fname_seqs = tmpdir / 'pesti_example.gff'
+        assert '' == check('anchorna create --tutorial-subset')
+        assert '' == check('anchorna go --thr-quota-add-anchor 0.5 --score-add-word 18 --no-pbar anchors.gff')
+        assert 'A11' in check('anchorna print anchors.gff')
+        assert '(poor)' in check('anchorna print anchors.gff -v')
+        out1 = check('anchorna combine anchors.gff|a5:a10|a8')
+        out2 = check('anchorna combine anchors.gff|a5,a6,a7,a9')
+        assert out1 == out2
+        assert 'anchor0' in check('anchorna export --jalview anchors.gff')
+        assert 'anchorna' in check('anchorna export anchors.gff')
+        with patch('subprocess.run'):  # we do not want to actually start jalview here
+            assert '' == check('anchorna view anchors.gff')
+        anchors = read_anchors('anchors.gff')
+        check(f'anchorna cutout anchors.gff atg>+5 end-10 --fname {fname_seqs}')
+        seqs = read(fname_seqs)
+        seqs2 = cutout(seqs, anchors, 'start+10', 'a5-5')
+        seqs3 = cutout(seqs, anchors, 'a5-5', '*>')
+        seqs4 = cutout(seqs, anchors, '*>', 'end')
+        assert str(seqs[0, 10:]) == str(seqs2[0] + seqs3[0] + seqs4[0])
+
+
+def test_anchorna_workflow_subset_no_cds():
+    with _changetmpdir() as tmpdir:
+        assert '' == check('anchorna create')
+        fname_seqs = tmpdir / 'pesti_example.gff'
+        assert '' == check('anchorna create --tutorial-subset --no-cds')
+        assert '' == check('anchorna go --no-pbar anchors.gff')
+        assert 'A11' in check('anchorna print anchors.gff')
+        assert 'F1' in check('anchorna print anchors.gff -v')
+        out1 = check('anchorna combine anchors.gff|a5:a10|a8')
+        out2 = check('anchorna combine anchors.gff|a5,a6,a7,a9')
+        assert out1 == out2
+        assert 'anchor0' in check('anchorna export --jalview anchors.gff')
+        assert 'anchor0' in check('anchorna export --jalview -m seq anchors.gff')
+        assert 'anchorna' in check('anchorna export anchors.gff')
+        with patch('subprocess.run'):  # we do not want to actually start jalview here
+            assert '' == check('anchorna view anchors.gff')
+            assert '' == check('anchorna view anchors.gff --align a1')
+        anchors = read_anchors('anchors.gff')
+        with pytest.raises(ValueError):
+            check(f'anchorna cutout anchors.gff atg>+5 end-10 --fname {fname_seqs}')
+        seqs = read(fname_seqs)
+        seqs2 = cutout(seqs, anchors, 'start+10', 'a5-5')
+        seqs3 = cutout(seqs, anchors, 'a5-5', '*>')
+        seqs4 = cutout(seqs, anchors, '*>', 'end')
+        assert str(seqs[0, 10:]) == str(seqs2[0] + seqs3[0] + seqs4[0])
 
 
 @pytest.mark.slowtest

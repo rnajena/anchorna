@@ -62,7 +62,7 @@ def anchor_at_pos(i, aas, w, refid, maxshift,
     """
     Find an anchor for a specific position i in the reference sequence refid
 
-    Return anchor or None, for descitption of keyowrds,
+    Return anchor or None, for description of options,
     see example configuration file.
 
     1) Add fluke at position i for refid to anchor, set word to refword, set words set to {word}
@@ -77,13 +77,15 @@ def anchor_at_pos(i, aas, w, refid, maxshift,
         - if new word not in words, add it to words and set as new word, break loop 3b)
     4) Recalculate score, create and return anchor
     """
+    if thr_score_add_anchor < score_add_word:  # there might be anchors with only poor flukes
+        raise ValueError('Please set thr_score_add_anchor >= score_add_word.')
     winlen = w
     aaref = [aa for aa in aas if aa.id == refid][0]
     assert aaref == aas[0]
     refword = str(aaref)[i:i+winlen]
     refscore = corrscore(refword, refword, sm=submat(scoring))
     if refscore < thr_score_add_anchor:
-        log.warning(f'The score of word {refword} with itself is {refscore}, smaller than {thr_score_add_anchor=}')
+        # log.warning(f'The score of word {refword} with itself is {refscore}, smaller than {thr_score_add_anchor=}')
         return
     words = {refword}
     todo = set(aas[1:].ids)
@@ -99,10 +101,9 @@ def anchor_at_pos(i, aas, w, refid, maxshift,
             score, j = shift_and_find_best_word(aa, refword, i, winlen, submat(scoring), maxshiftl, maxshiftr)
             if j is None:
                 raise ValueError('zero length sequence - that should not happen')
-            heappush(toadd, (-score, j, id_))
+            heappush(toadd, (-score, score, j, id_))
         while len(toadd) > 0:
-            score, j, id_ = heappop(toadd)
-            score = -score
+            _, score, j, id_ = heappop(toadd)
             if id_ not in todo:
                 continue
             if score < thr_score_add_anchor:
@@ -129,7 +130,7 @@ def anchor_at_pos(i, aas, w, refid, maxshift,
     return anchor
 
 
-def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=None):
+def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True):
     if results is None:
         results = []
     if njobs == 0:
@@ -142,7 +143,7 @@ def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=None):
         pool = multiprocessing.Pool(njobs)
         mymap = pool.imap_unordered(do_work, tasks)
     if pbar:
-        desc = '{:3d} anchors found, check candidates'
+        desc = '{:3d} anchors found, check positions'
         pbar = tqdm(desc=desc.format(0), total=len(tasks))
     for res in mymap:
         if res is not None:
@@ -155,7 +156,7 @@ def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=None):
     return results
 
 
-def find_anchors_winlen(aas, w, refid, indexrange=None, anchors=None, njobs=0, pbar=None, **kw):
+def find_anchors_winlen(aas, w, refid, indexrange=None, anchors=None, njobs=0, pbar=True, **kw):
     """
     Find multiple anchors in aa sequences for a specific word length
     """
@@ -175,28 +176,34 @@ def find_anchors_winlen(aas, w, refid, indexrange=None, anchors=None, njobs=0, p
 
 
 def find_my_anchors(seqs, remove=True, aggressive_remove=True,
-                    continue_with=None, **kw):
+                    continue_with=None, no_cds=False, **kw):
     """
     Find and return anchors in CDS region of nucleotide sequences
     """
     if continue_with is None:
-        all_offset = all('offset' in seq.meta for seq in seqs)
-        all_cds = all('features' in seq.meta and seq.fts.get('cds') for seq in seqs)
-        if all_offset:
-            log.info('Found offsets in sequence file, translate full sequence')
-            aas = seqs.translate(complete=True)
-            for aa in aas:
-                if '*' in str(aa):
-                    log.error(f'Stop codon in aa sequence {aa.id}')
-        elif all_cds:
-            log.info('Found CDS features in sequence file, translate CDS')
-            aas = seqs['cds'].translate()
-            for aa in aas:
-                aa.meta.offset = aa.fts.get('cds').loc.start
-        else:
-            log.warning('Did not found CDS annotation or offset for at least one sequence, do not translate')
+        if no_cds:
             aas = seqs
-        log.debug('result of translation are {}'.format(aas.tostr(h=0)))
+            all_offset = all('offset' in seq.meta for seq in seqs)
+            if not all_offset:
+                for aa in aas:
+                    aa.meta.offset = 0
+        else:
+            all_offset = all('offset' in seq.meta for seq in seqs)
+            all_cds = all('features' in seq.meta and seq.fts.get('cds') for seq in seqs)
+            if all_offset:
+                log.info('Found offsets in sequence file, translate full sequence')
+                aas = seqs.translate(complete=True)
+                for aa in aas:
+                    if '*' in str(aa):
+                        log.error(f'Stop codon in aa sequence {aa.id}')
+            elif all_cds:
+                log.info('Found CDS features in sequence file, translate CDS')
+                aas = seqs['cds'].translate()
+                for aa in aas:
+                    aa.meta.offset = aa.fts.get('cds').loc.start
+            else:
+                raise ValueError('Did not found CDS annotation or offset for at least one sequence')
+            log.debug('result of translation are {}'.format(aas.tostr(h=0)))
         log.info('find anchors for specified word length')
         anchors = find_anchors_winlen(aas, **kw)
         log.info(f'found {len(anchors)} anchors')

@@ -16,10 +16,6 @@ def corrscore(seq1, seq2, gap='-', sm=submat('blosum62')):
     return sum(sm[nt1][nt2] for nt1, nt2 in zip(seq1, seq2) if nt1 != gap and nt2 != gap)
 
 
-class Options(Attr):
-    pass
-
-
 class Fluke(Attr):
     @property
     def len(self):
@@ -59,6 +55,10 @@ class Anchor(collections.UserList):
     def d(self):
         return self.todict()
 
+    @property
+    def ids(self):
+        return [f.seqid for f in self]
+
     def tostr(self, i='', verbose=False, mode='aa'):
         ind = _apply_mode(self.ref.start, self.ref.offset, mode=mode)
         len_ = _apply_mode(self.ref.len, self.ref.offset,
@@ -73,7 +73,7 @@ class Anchor(collections.UserList):
 
     def sort(self, key=None, **kw):
         if key is None:
-            def key(f): return (0, '') if f.seqid == self.refid else (f.poor, f.seqid)
+            def key(f): return (False, '') if f.seqid == self.refid else (f.poor, f.seqid)
         self.data = sorted(self.data, key=key, **kw)
         return self
 
@@ -103,15 +103,16 @@ class Anchor(collections.UserList):
         data = [f for f in self if not f.poor]
         return Anchor(data, refid=self.refid)
 
-    def overlaps_in_a_simple_way_with(self, a2):
+    def nicely_overlaps_with(self, a2):
         a1 = self.good_flukes
         a2 = a2.good_flukes
         return (max(a1.ref.start, a2.ref.start) <= min(a1.ref.stop, a2.ref.stop) and
+                set(a1.ids) == set(a2.ids) and
                 all((f1.start - f2.start == a1.ref.start - a2.ref.start and f1.poor == f2.poor) for f1, f2 in zip(a1.sort(), a2.sort())))
 
     def join_with(self, a2):
         a1 = self
-        if not a1.overlaps_in_a_simple_way_with(a2):
+        if not a1.nicely_overlaps_with(a2):
             raise ValueError('Cannot join anchors which do not overlap')
         if a1.ref.start <= a2.ref.start and a1.ref.stop >= a2.ref.stop:
             # a2 is contained in a1
@@ -207,7 +208,7 @@ class AnchorList(collections.UserList):
                     continue
                 if a1.ref.stop < a2.ref.start:
                     break
-                if a1.overlaps_in_a_simple_way_with(a2):
+                if a1.nicely_overlaps_with(a2):
                     a1 = a1.join_with(a2)
                     already_merged.add(a2)
             ndata.append(a1)

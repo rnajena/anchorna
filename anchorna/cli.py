@@ -1,7 +1,6 @@
 # (C) 2024, Tom Eulenfeld, MIT license
 
 import argparse
-import contextlib
 from copy import deepcopy
 from importlib.resources import files
 import logging
@@ -18,16 +17,7 @@ from warnings import warn
 from sugar import read
 from anchorna.core import combine, cutout, find_my_anchors
 from anchorna.io import jalview_features, read_anchors, load_selected_anchors
-from anchorna.util import _apply_mode, Options
-
-@contextlib.contextmanager
-def _changedir(path):
-    origin = Path().absolute()
-    try:
-        os.chdir(path)
-        yield
-    finally:
-        os.chdir(origin)
+from anchorna.util import _apply_mode
 
 
 EXAMPLE_TOML_CONFIG = """### Configuration for AnchoRNA in TOML format
@@ -124,19 +114,26 @@ def _tutorial_seqs(subset=False):
     return seqs
 
 
-def _cmd_create(conf, tutorial=False, tutorial_subset=False):
+def _cmd_create(conf, tutorial=False, tutorial_subset=False, no_cds=False):
     if tutorial and tutorial_subset:
         raise ValueError('Only one of tutorial or tutorial_subset are allowed')
+    example = EXAMPLE_TOML_CONFIG
+    if no_cds:
+        example = example.replace('blosum62"', 'blosum62"       # use e.g. nuc for nucleotite sequences')
+        example = example + 'no_cds = true              # directly use aa or nucleotite sequences, no translation, mode option is ignored\n'
     with open(conf, 'w') as f:
-        f.write(EXAMPLE_TOML_CONFIG)
+        f.write(example)
     if tutorial or tutorial_subset:
         seqs = _tutorial_seqs(subset=tutorial_subset)
+        if no_cds:
+            seqs = seqs['cds'].translate()
         path = os.path.dirname(conf)
         seqs.write(os.path.join(path, 'pesti_example.gff'))
 
 def _cmd_go(fname, fname_anchor, pbar=True, continue_with=None,
             removed_anchors_path=None,
-            logconf=None, logfile=None, no_logging=False, **kw):
+            logconf=None, logfile=None, no_logging=False,
+            **kw):
     if no_logging:
         logging.disable(logging.CRITICAL)
     else:
@@ -190,14 +187,14 @@ def _cmd_export(fname_anchor, out, mode='aa', score_use_fluke=None, jalview=Fals
             out = sys.stdout
         anchors.write(out, mode=mode)
 
-def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
+def _cmd_view(fname_anchor, fname, mode='aa', no_cds=False, align=None, score_use_fluke=None):
     assert mode in ('seq', 'cds', 'aa')
     with tempfile.TemporaryDirectory(prefix='anchorna') as tmpdir:
         fname_export = Path(tmpdir) / 'jalview_features.txt'
         fnameseq = Path(tmpdir) / 'aa_or_seq_or_cds.fasta'
         _cmd_export(fname_anchor, fname_export, mode=mode, score_use_fluke=score_use_fluke, jalview=True)
         seqs = read(fname)
-        if mode != 'seq':
+        if mode != 'seq' and not no_cds:
             anchors = read_anchors(fname_anchor)
             offsets = {f.seqid: f.offset for anchor in anchors for f in anchor}
             for seq in seqs:
@@ -219,8 +216,10 @@ def _cmd_combine(fname_anchor, out):
     anchors = combine(lot_of_anchors)
     anchors.write(out)
 
-def _cmd_cutout(fname, fname_anchor, pos1, pos2, out, fmt, mode='seq', score_use_fluke=None):
+def _cmd_cutout(fname, fname_anchor, pos1, pos2, out, fmt, mode='seq', score_use_fluke=None, no_cds=False):
     assert mode in ('seq', 'cds', 'aa')
+    if no_cds:
+        mode = 'aa'
     seqs = read(fname)
     anchors = load_selected_anchors(fname_anchor)
     seqs2 = cutout(seqs, anchors, pos1, pos2, mode=mode, score_use_fluke=score_use_fluke)
@@ -240,14 +239,14 @@ def run(command, conf=None, pdb=False, **args):
         except ValueError as ex:
             sys.exit('Error while parsing the configuration: %s' % ex)
         except IOError as ex:
-            if command == 'go':
+            if command in ('go', 'export', 'view', 'cutout'):
                 warn(ex)
             conf = {}
     else:
         conf = {}
-    if command in ('cutout', 'view', 'export'):
-        # ignore all config settings except fname, score_use_fluke
-        conf = {k: conf[k] for k in ('fname', 'score_use_fluke') if k in conf}
+    if command in ('export', 'view', 'cutout'):
+        # ignore all config settings except the following
+        conf = {k: conf[k] for k in ('fname', 'score_use_fluke', 'no_cds') if k in conf}
     # Populate args with conf, but prefer args
     conf.update(args)
     args = conf
@@ -259,6 +258,11 @@ def run(command, conf=None, pdb=False, **args):
             print()
             pdb.pm()
         sys.excepthook = info
+    # for no_cds, commands create, go, view and cutout expect this argument,
+    # for other commands the default mode is already the correct one
+    if getattr(args, 'pop' if command == 'export' else 'get')('no_cds', False):
+        if 'mode' in args:
+            raise ValueError('Mode may not be specified with --no-cds option')
     try:
         globals()[f'_cmd_{command}'](**args)
     except KeyError:
@@ -316,9 +320,11 @@ def run_cmdline(cmd_args=None):
     p_cutout = sub.add_parser('cutout', help=msg, description=msg, epilog=msg2)
 
 
-    for p in (p_create, p_go, p_cutout, p_view):
+    for p in (p_create, p_go, p_view, p_cutout):
         p.add_argument('-c', '--conf', default='anchorna.conf', help='configuration file to use (default: anchorna.conf)')
     p_create.add_argument('--tutorial', action='store_true', help='copy GFF sequence file for tutorial')
+    p_create.add_argument('--no-cds', action='store_true', help='add the no_cds line to configuration, effect: directly use aa or nucleotide '
+                                                                'sequences, no translation, --mode parameter not allowed')
     p_create.add_argument('--tutorial-subset', action='store_true', help=argparse.SUPPRESS, default=argparse.SUPPRESS)  # for testing purposes
     p_go.add_argument('fname_anchor', help='anchor file name (GFF output)')
     p_go.add_argument('--njobs', help='number of jobs to use', type=int, default=argparse.SUPPRESS)
@@ -335,11 +341,13 @@ def run_cmdline(cmd_args=None):
         for f in fs:
             g.add_argument('--' + f, default=argparse.SUPPRESS, type=type_)
     g.add_argument('--aggressive-remove', action=argparse.BooleanOptionalAction, default=argparse.SUPPRESS)
-    for p in (p_cutout, p_export, p_view):
+    g.add_argument('--no-cds', action='store_true', default=argparse.SUPPRESS)
+    for p in (p_export, p_view, p_cutout):
         g = p.add_argument_group('optional arguments', description='Use these flags to overwrite values in the config file.')
         if p != p_export:
             g.add_argument('--fname', default=argparse.SUPPRESS)
         g.add_argument('--score-use-fluke', default=argparse.SUPPRESS, type=int)
+        g.add_argument('--no-cds', action='store_true', default=argparse.SUPPRESS)
 
 
     p_export.add_argument('fname_anchor', help='anchor file name')
@@ -367,7 +375,7 @@ def run_cmdline(cmd_args=None):
         msg = ('choose mode, seq: relative to original sequence, '
                'cds: accounting for offset (usually coding sequence), aa: translated cds '
                f'(default: {default})')
-        p.add_argument('-m', '--mode', default=default, choices=choices, help=msg)
+        p.add_argument('-m', '--mode', default=argparse.SUPPRESS, choices=choices, help=msg)
 
     # Get command line arguments and start run function
     args = parser.parse_args(cmd_args)

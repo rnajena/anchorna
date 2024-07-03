@@ -7,7 +7,7 @@ import matplotlib.colors as mcolors
 from matplotlib.colors import to_hex, to_rgb
 from sugar import read_fts
 
-from anchorna.util import _apply_mode, fts2anchors, Anchor, AnchorList, Fluke, Options
+from anchorna.util import _apply_mode, fts2anchors, Anchor, AnchorList, Fluke
 
 
 log = logging.getLogger('anchorna')
@@ -31,7 +31,7 @@ def write_anchors(anchors, fname, mode=None):
             f'#AnchoRNA anchor file\n'
             f'# written with AnchoRNA v{__version__}\n'
             '# Indices are given for amino acids, the offset specifies the offset of index 0 from this file\n'
-            '# to the beginning of the original sequence (in nucleotites).\n' + offsets_header)
+            '# to the beginning of the original sequence (in nucleotides).\n' + offsets_header)
     else:
         header = f'# Anchors exported by AnchoRNA v{__version__} with mode {mode}\n'
     if fname is None:
@@ -64,8 +64,6 @@ def read_anchors(fname, check_header=True):
             offsets[seqid] = int(offset)
         elif line.startswith('#'):
             continue
-        else:
-            break
     for ft in fts:
         ft.meta._gff.offset = offsets[ft.seqid]
     return fts2anchors(fts)
@@ -105,20 +103,13 @@ def load_selected_anchors(fname):
 
 class _AnchorJSONEncoder(json.JSONEncoder):
     def default(self, o):
-        if isinstance(o, (Anchor, AnchorList, Fluke, Options)):
+        if isinstance(o, (Anchor, AnchorList, Fluke)):
             obj = {k: v for k, v in o.__dict__.items()}
             obj['_cls'] = type(o).__name__
             return obj
         else:
             # Let the base class default method raise the TypeError
             return json.JSONEncoder.default(self, o)
-
-
-class _ConfigJSONDecoder(json.JSONDecoder):
-    """Decode JSON config with comments stripped"""
-    def decode(self, s):
-        s = '\n'.join(l.split('#', 1)[0] for l in s.split('\n'))
-        return super(_ConfigJSONDecoder, self).decode(s)
 
 
 def _json_hook(d):
@@ -133,7 +124,7 @@ def load_json(fname):
     Load anchors from JSON file
     """
 
-    if fname == '-':
+    if fname in ('-', None):
         return json.loads(sys.stdin.read(), object_hook=_json_hook)
     else:
         with open(fname) as f:
@@ -144,7 +135,7 @@ def write_json(obj, fname):
     """
     Write anchors to JSON file
     """
-    if fname is None:
+    if fname in ('-', None):
         print(json.dumps(obj, cls=_AnchorJSONEncoder))
     else:
         with open(fname, 'w') as f:

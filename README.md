@@ -5,25 +5,31 @@
 
 Find anchors in RNA/DNA sequences.
 
-Anchorna is designed to find anchor regions in a set of similar sequences. Anchors are saved as GFF files.
-Anchorna provides export functionality to Jalview feature files. You can cut out sequences relative to anchors for import into external tools.
+Anchorna is designed to find anchors, i.e. conserved regions, in coding sequences (or non-coding sequences or amino acis desuqnes ;) in a set of similar sequences. Anchors are stored as GFF files.
+Anchors can be viewed in JalView. You can cut out sequences relative to anchors for import into external tools.
 
 Anchorna supports curation and iterative refinement of anchors.
 
 ### Installation
 
 Use pip to install anchorna. It is best installed in a dedicated (conda) environment.
-To install the latest release use the following command and replace `VERSION` with the latest version number.
+To install the latest release use the following command.
 
 ```
-pip install https://github.com/rnajena/anchorna/archive/refs/tags/VERSION.zip
+pip install https://github.com/rnajena/anchorna/archive/refs/tags/1.0.1.zip
 ```
 
-To install the development version in editable mode, clone the repository and install with `pip -e repo_path`.
+To install the latest development version, use:
+
+```
+pip install https://github.com/rnajena/anchorna/archive/refs/heads/master.zip
+```
+
+To install the package in editable mode, clone the repository and install with `pip -e repo_path`.
 
 ### Usage & Tutorial
 
-A command line tool is provided, check `anchorna -h` and the help of subcommands. An example configuration file can be created with `anchorna create`.
+A command line tool is provided, see `anchorna -h` and the help of subcommands. An example configuration file can be created with `anchorna create`.
 
 Start the tutorial with
 
@@ -34,6 +40,7 @@ anchorna create --tutorial
 We provide here some CLI calls. Please run each of them separately and carefully try to understand what they do.
 
 ```
+# Identify anchors
 anchorna go anchors.gff
 
 # Print anchors
