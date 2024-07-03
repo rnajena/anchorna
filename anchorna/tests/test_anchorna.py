@@ -58,6 +58,17 @@ def check(cmd):
     return f.getvalue()
 
 
+def _fix_open_log_file_on_windows():
+    # fix the following error observed in CI
+    # FAILED ..\anchorna\tests\test_anchorna.py::test_anchorna_workflow_subset_poor
+    # - PermissionError: [WinError 32] The process cannot access the file because
+    # it is being used by another process: '...\\anchorna.log'
+    import logging
+    log = logging.getLogger('anchorna')
+    for handler in log.handlers:
+        handler.close()
+
+
 def test_anchorna_script_help():
     """
     Test that anchorna can be called on the command line
@@ -144,11 +155,7 @@ def test_anchorna_workflow_subset():
         write_json(anchors, json)
         assert load_json(json) == anchors
 
-        # try to fix open log file in windows
-        import logging
-        log = logging.getLogger('anchorna')
-        for handler in log.handlers:
-            handler.close()
+        _fix_open_log_file_on_windows()
 
 
 def test_anchorna_workflow_subset_poor():
@@ -173,6 +180,8 @@ def test_anchorna_workflow_subset_poor():
         seqs3 = cutout(seqs, anchors, 'a5-5', '*>')
         seqs4 = cutout(seqs, anchors, '*>', 'end')
         assert str(seqs[0, 10:]) == str(seqs2[0] + seqs3[0] + seqs4[0])
+
+        _fix_open_log_file_on_windows()
 
 
 def test_anchorna_workflow_subset_no_cds():
@@ -200,6 +209,8 @@ def test_anchorna_workflow_subset_no_cds():
         seqs3 = cutout(seqs, anchors, 'a5-5', '*>')
         seqs4 = cutout(seqs, anchors, '*>', 'end')
         assert str(seqs[0, 10:]) == str(seqs2[0] + seqs3[0] + seqs4[0])
+
+        _fix_open_log_file_on_windows()
 
 
 @pytest.mark.slowtest
