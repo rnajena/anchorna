@@ -5,10 +5,10 @@
 
 Find anchors in RNA/DNA sequences.
 
-Anchorna is designed to find anchors, i.e. conserved regions, in coding sequences (or non-coding sequences or amino acis desuqnes ;) in a set of similar sequences. Anchors are stored as GFF files.
+AnchoRNA is designed to find anchors, i.e. conserved regions, in coding sequences in a set of similar sequences. Anchors are stored as GFF files.
 Anchors can be viewed in JalView. You can cut out sequences relative to anchors for import into external tools.
 
-Anchorna supports curation and iterative refinement of anchors.
+AnchoRNA supports curation and iterative refinement of anchors. It can also be used to find anchors in non-coding sequences or amino acid sequences.
 
 ### Installation
 
@@ -40,8 +40,8 @@ anchorna create --tutorial
 We provide here some CLI calls. Please run each of them separately and carefully try to understand what they do.
 
 ```
-# Identify anchors
-anchorna go anchors.gff
+# Identify anchors, use 8 cores
+anchorna go --njobs 8 anchors.gff
 
 # Print anchors
 anchorna print anchors.gff
@@ -52,21 +52,23 @@ anchorna print --mode seq anchors.gff
 anchorna export anchors.gff --jalview -o jalview_fts.txt
 sugar translate --cds pesti_example.gff -o pestiaa.fasta
 jalview pestiaa.fasta --features jalview_fts.txt
-# Instead of the above three lines we can just use anchorna view
-anchorna view anchors.gff
+# Instead of the above three lines we can just use anchorna view.
+# Here, we additional align with the second anchor.
+anchorna view anchors.gff --align A1
 
 # View anchors in Jalview (nucleotide sequences)
 anchorna view --mode seq anchors.gff
 
-# We are not satisfied with the first anchor, remove it and check the resulting anchors in Jalview, afterwards save to new anchor file
+# We are not satisfied with the first anchor, remove it and check the resulting anchors in
+# Jalview, afterwards save to new anchor file
 anchorna combine "anchors.gff||a0" | anchorna view -
 anchorna combine "anchors.gff||a0" -o anchors2.gff
 # Note that anchors are renumbered, the anchor number is not a property of each anchor,
 # it is just used as a simple reference later on
 anchorna print anchors2.gff
 
-# Cutout subsequences starting before start codon and
-# ending 10 nucleotides after 3rd anchor (remember 0-based indexing) for usage in external tool
+# Cutout subsequences starting before start codon and ending 10 nucleotides
+# after 3rd anchor (remember 0-based indexing) for usage in external tool
 anchorna cutout anchors2.gff "ATG<" "A2>+10" -o pestiA3.fasta
 
 
@@ -92,4 +94,4 @@ anchorna view anchors_final.gff
 
 ### Run tests
 
-Clone or download this repository cd into anchorna folder and call `pytest`.
+Clone or download this repository cd into repository folder and call `pytest`.
