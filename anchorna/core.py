@@ -162,6 +162,8 @@ def find_anchors_winlen(aas, w, gseqid, indexrange=None, anchors=None, njobs=0, 
     """
     Find multiple anchors in aa sequences for a specific word length
     """
+    if str(gseqid).lower() in ('none', 'null'):
+        gseqid = aas[0].id
     for i, aa in enumerate(aas):
         if aa.id == gseqid:
             break
