@@ -140,7 +140,7 @@ def test_anchorna_workflow_subset():
 
         fname = tmpdir / 'pesti_test_cutout2.sjson'
         assert '' == check(f'anchorna cutout anchors.gff a6> a10< -o {fname}')
-        assert '' == check(f'anchorna go --fname {fname} --no-pbar anchors_cutout2.gff --maxshift=1000')
+        assert '' == check(f'anchorna go --fname {fname} --no-pbar anchors_cutout2.gff --search-range=1000')
         assert '' == check('anchorna combine anchors.gff||a7:a10 anchors_cutout2.gff -o anchors_combined2.gff')
         assert read_anchors('anchors_combined2.gff') == load_selected_anchors('anchors.gff')
 

@@ -56,16 +56,16 @@ def shift_and_find_best_word(seq, word, starti, w, sm, maxshift=None, maxshift_r
     return sim, ind
 
 
-def anchor_at_pos(i, aas, w, refid, maxshift,
+def anchor_at_pos(i, aas, w, gseqid, search_range,
                   score_add_word, thr_quota_add_anchor, thr_score_add_anchor,
                   scoring):
     """
-    Find an anchor for a specific position i in the reference sequence refid
+    Find an anchor for a specific position i in the guiding sequence gseqid
 
     Return anchor or None, for description of options,
     see example configuration file.
 
-    1) Add fluke at position i for refid to anchor, set word to refword, set words set to {word}
+    1) Add fluke at position i for gseqid to anchor, set word to gword, set words set to {word}
     2) Add all other ids to todo list
     3) Until todo list is empty
       a) find best (score, index j) with word for each sequence in todo and add (score, j, seqid) to heap
@@ -80,41 +80,43 @@ def anchor_at_pos(i, aas, w, refid, maxshift,
     if thr_score_add_anchor < score_add_word:  # there might be anchors with only poor flukes
         raise ValueError('Please set thr_score_add_anchor >= score_add_word.')
     winlen = w
-    aaref = [aa for aa in aas if aa.id == refid][0]
-    assert aaref == aas[0]
-    refword = str(aaref)[i:i+winlen]
-    refscore = corrscore(refword, refword, sm=submat(scoring))
-    if refscore < thr_score_add_anchor:
-        # log.warning(f'The score of word {refword} with itself is {refscore}, smaller than {thr_score_add_anchor=}')
+    gaa = [aa for aa in aas if aa.id == gseqid][0]
+    assert gaa == aas[0]
+    gword = str(gaa)[i:i+winlen]
+    gscore = corrscore(gword, gword, sm=submat(scoring))
+    if gscore < thr_score_add_anchor:
         return
-    words = {refword}
+    words = {gword}
     todo = set(aas[1:].ids)
     aas = aas.d
     toadd = []
-    res = [(refscore, i, refid)]
+    res = [(gscore, i, gseqid)]
     nfails = 0
     while len(todo) > 0:
         for id_ in todo:
             aa = aas[id_]
-            maxshiftl = maxshift + max(0, len(aa) - len(aaref))
-            maxshiftr = maxshift + max(0, len(aaref) - len(aa))
-            score, j = shift_and_find_best_word(aa, refword, i, winlen, submat(scoring), maxshiftl, maxshiftr)
+            maxshiftl = search_range + max(0, len(aa) - len(gaa))
+            maxshiftr = search_range + max(0, len(gaa) - len(aa))
+            score, j = shift_and_find_best_word(aa, gword, i, winlen, submat(scoring), maxshiftl, maxshiftr)
             if j is None:
                 raise ValueError('zero length sequence - that should not happen')
-            heappush(toadd, (-score, score, j, id_))
+            # The lowest object is poped from heap.
+            # Therefore, we add -score as first elemnt.
+            # abs(j-i) is the tiebreaker
+            heappush(toadd, (-score, abs(j-i), score, j, id_))
         while len(toadd) > 0:
-            _, score, j, id_ = heappop(toadd)
+            _, _, score, j, id_ = heappop(toadd)
             if id_ not in todo:
                 continue
             if score < thr_score_add_anchor:
                 nfails += 1
                 if nfails / len(aas) > 1 - thr_quota_add_anchor:
                     return
-            refword = str(aas[id_])[j:j+winlen]
+            gword = str(aas[id_])[j:j+winlen]
             res.append((score, j, id_))
             todo.discard(id_)
-            if refword not in words and score >= score_add_word:
-                words.add(refword)
+            if gword not in words and score >= score_add_word:
+                words.add(gword)
                 break
         else:
             assert len(todo) == 0
@@ -124,8 +126,8 @@ def anchor_at_pos(i, aas, w, refid, maxshift,
         fluke=Fluke(seqid=aa.id, score=None, start=j, offset=aa.meta.get('offset'),
                     stop=j+winlen, word=str(aa)[j:j+winlen], poor=score<score_add_word)
         flukes.append(fluke)
-    assert flukes[0].seqid == refid
-    anchor = Anchor(flukes, refid=refid)
+    assert flukes[0].seqid == gseqid
+    anchor = Anchor(flukes, gseqid=gseqid)
     anchor._calculate_fluke_scores()
     return anchor
 
@@ -156,22 +158,22 @@ def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True):
     return results
 
 
-def find_anchors_winlen(aas, w, refid, indexrange=None, anchors=None, njobs=0, pbar=True, **kw):
+def find_anchors_winlen(aas, w, gseqid, indexrange=None, anchors=None, njobs=0, pbar=True, **kw):
     """
     Find multiple anchors in aa sequences for a specific word length
     """
     for i, aa in enumerate(aas):
-        if aa.id == refid:
+        if aa.id == gseqid:
             break
     else:
-        raise ValueError(f'No sequence with ref id {refid}')
+        raise ValueError(f'No guiding sequence with id {gseqid}')
     aas.insert(0, aas.pop(i))
-    aaref = aas[0]
+    gaa = aas[0]
     if indexrange is None:
-        indexrange = list(range(len(aaref)-w))
-    do_work = partial(anchor_at_pos, aas=aas, w=w, refid=refid, **kw)
+        indexrange = list(range(len(gaa)-w))
+    do_work = partial(anchor_at_pos, aas=aas, w=w, gseqid=gseqid, **kw)
     anchors = _start_parallel_jobs(indexrange, do_work, anchors, njobs=njobs, pbar=pbar)
-    assert all([f[0].seqid == refid for f in anchors])
+    assert all([f[0].seqid == gseqid for f in anchors])
     return AnchorList(anchors).sort()
 
 

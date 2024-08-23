@@ -155,7 +155,7 @@ def jalview_features(anchors, mode='aa', score_use_fluke=None):
     Write anchors to Jalview feature file
     """
     assert mode in ('seq', 'cds', 'aa')
-    anchors = sorted(anchors, key=lambda a: a.ref.start)
+    anchors = sorted(anchors, key=lambda a: a.guide.start)
     content = []
     header = []
     for k, a in enumerate(anchors):
@@ -165,7 +165,7 @@ def jalview_features(anchors, mode='aa', score_use_fluke=None):
                 continue
             # anchor2	C_CSFV_KC533775	-1	130	150	anchorsim	1.0
             # anhcor100	D_BDV_NC_003679	-1	10	20	anchorxx
-            wlen = a.ref.len
+            wlen = a.guide.len
             score_ = max(1, f.median_score) / a.maxscore
             c = to_hex(_make_rgb_transparent(cols[k % len(cols)], 'white', score_)).strip('#')
             al = f'anchor{k}_s{f.median_score}'

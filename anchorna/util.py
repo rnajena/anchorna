@@ -43,10 +43,10 @@ class Anchor(collections.UserList):
 
     @property
     def id(self):
-        return f'A {self.ref.start}+{self.ref.len}'
+        return f'A {self.guide.start}+{self.guide.len}'
 
     def __hash__(self):
-        return hash((self.ref.start, self.ref.len, self.ref.offset))
+        return hash((self.guide.start, self.guide.len, self.guide.offset))
 
     def todict(self):
         return {f.seqid: f for f in self}
@@ -60,11 +60,11 @@ class Anchor(collections.UserList):
         return [f.seqid for f in self]
 
     def tostr(self, i='', verbose=False, mode='aa'):
-        ind = _apply_mode(self.ref.start, self.ref.offset, mode=mode)
-        len_ = _apply_mode(self.ref.len, self.ref.offset,
+        ind = _apply_mode(self.guide.start, self.guide.offset, mode=mode)
+        len_ = _apply_mode(self.guide.len, self.guide.offset,
                            mode=mode, islen=True)
         poor = sum(f.poor for f in self)
-        out = f'A{i} {ind}+{len_}  minscore {self.minscore}  poor {poor}  {self.ref.word}'
+        out = f'A{i} {ind}+{len_}  minscore {self.minscore}  poor {poor}  {self.guide.word}'
         if not verbose:
             return out
         flukes = [f'  F{j} {_apply_mode(f.start, f.offset, mode=mode)}  medscore {f.median_score}  {f.word}  {f.seqid}' + '  (poor)' * f.poor
@@ -73,13 +73,13 @@ class Anchor(collections.UserList):
 
     def sort(self, key=None, **kw):
         if key is None:
-            def key(f): return (False, '') if f.seqid == self.refid else (f.poor, f.seqid)
+            def key(f): return (False, '') if f.seqid == self.gseqid else (f.poor, f.seqid)
         self.data = sorted(self.data, key=key, **kw)
         return self
 
     @property
-    def ref(self):
-        return self.d[self.refid]
+    def guide(self):
+        return self.d[self.gseqid]
 
     @property
     def minscore(self):
@@ -96,28 +96,28 @@ class Anchor(collections.UserList):
     @property
     def poor_flukes(self):
         data = [f for f in self if f.poor]
-        return Anchor(data, refid=self.refid)
+        return Anchor(data, gseqid=self.gseqid)
 
     @property
     def good_flukes(self):
         data = [f for f in self if not f.poor]
-        return Anchor(data, refid=self.refid)
+        return Anchor(data, gseqid=self.gseqid)
 
     def nicely_overlaps_with(self, a2):
         a1 = self.good_flukes
         a2 = a2.good_flukes
-        return (max(a1.ref.start, a2.ref.start) <= min(a1.ref.stop, a2.ref.stop) and
+        return (max(a1.guide.start, a2.guide.start) <= min(a1.guide.stop, a2.guide.stop) and
                 set(a1.ids) == set(a2.ids) and
-                all((f1.start - f2.start == a1.ref.start - a2.ref.start and f1.poor == f2.poor) for f1, f2 in zip(a1.sort(), a2.sort())))
+                all((f1.start - f2.start == a1.guide.start - a2.guide.start and f1.poor == f2.poor) for f1, f2 in zip(a1.sort(), a2.sort())))
 
     def join_with(self, a2):
         a1 = self
         if not a1.nicely_overlaps_with(a2):
             raise ValueError('Cannot join anchors which do not overlap')
-        if a1.ref.start <= a2.ref.start and a1.ref.stop >= a2.ref.stop:
+        if a1.guide.start <= a2.guide.start and a1.guide.stop >= a2.guide.stop:
             # a2 is contained in a1
             return a1
-        elif a1.ref.start >= a2.ref.start and a1.ref.stop <= a2.ref.stop:
+        elif a1.guide.start >= a2.guide.start and a1.guide.stop <= a2.guide.stop:
             # a1 is contained in a2
             return a2
         else:
@@ -155,7 +155,7 @@ class Anchor(collections.UserList):
                               start=start, stop=stop, offset=f1.offset, word=nword,
                               poor=f1.poor)
                 flukes.append(fluke)
-            anchor = Anchor(flukes, refid=a1.refid)
+            anchor = Anchor(flukes, gseqid=a1.gseqid)
             anchor._calculate_fluke_scores()
             return anchor
 
@@ -168,7 +168,7 @@ class Anchor(collections.UserList):
 
     def contradicts(self, a2, aggressive=True):
         a1 = self
-        if a1.ref.start > a2.ref.start:
+        if a1.guide.start > a2.guide.start:
             a1, a2 = a2, a1
         a1 = a1.good_flukes
         a2 = a2.good_flukes
@@ -192,7 +192,7 @@ class AnchorList(collections.UserList):
     def tostr(self, verbose=False, mode='aa'):
         return '\n'.join(a.tostr(i=i, verbose=verbose, mode=mode) for i, a in enumerate(self))
 
-    def sort(self, key=lambda a: a.ref.start, **kw):
+    def sort(self, key=lambda a: a.guide.start, **kw):
         self.data = sorted(self, key=key, **kw)
         return self
 
@@ -206,7 +206,7 @@ class AnchorList(collections.UserList):
             for a2 in self.data[i+1:]:
                 if a2 in already_merged:
                     continue
-                if a1.ref.stop < a2.ref.start:
+                if a1.guide.stop < a2.guide.start:
                     break
                 if a1.nicely_overlaps_with(a2):
                     a1 = a1.join_with(a2)
@@ -228,8 +228,8 @@ class AnchorList(collections.UserList):
                     continue
                 assert a1 != a2 and a1.minscore >= a2.minscore
                 if a1.contradicts(a2, aggressive=aggressive):
-                    log.debug(f'Remove anchor {a2.ref.start}+{a2.ref.len} with min score {a2.minscore}, '
-                              f'keep anchor {a1.ref.start}+{a1.ref.len} with min score {a1.minscore}')
+                    log.debug(f'Remove anchor {a2.guide.start}+{a2.guide.len} with min score {a2.minscore}, '
+                              f'keep anchor {a1.guide.start}+{a1.guide.len} with min score {a1.minscore}')
                     remove_anchors.add(a2)
         self.data = [anchor for anchor in self if anchor not in remove_anchors]
         return AnchorList(remove_anchors).sort()
@@ -252,7 +252,7 @@ def anchors2fts(anchors):
     fts = []
     for i, a in enumerate(anchors):
         for j, f in enumerate(a.sort()):  # fluke
-            if a.refid == f.seqid:
+            if a.gseqid == f.seqid:
                 assert j == 0
                 ftype = 'anchor'
                 name = f'A{i}'
@@ -280,13 +280,13 @@ def fts2anchors(fts):
     """
     anchors = []
     flukes = []
-    refid = None
+    gseqid = None
     for ft in fts:
         if ft.type == 'anchor':
             if len(flukes) > 0:
-                anchors.append(Anchor(flukes, refid=refid))
+                anchors.append(Anchor(flukes, gseqid=gseqid))
                 flukes = []
-            refid = ft.seqid
+            gseqid = ft.seqid
             aname = ft.meta.name
         if ft.type in ('anchor', 'fluke'):
             if not ft.meta.name.startswith(aname):
@@ -301,5 +301,5 @@ def fts2anchors(fts):
         else:
             warn(f'Cannot convert feature of type {ft.type}')
     if len(flukes) > 0:
-        anchors.append(Anchor(flukes, refid=refid))
+        anchors.append(Anchor(flukes, gseqid=gseqid))
     return AnchorList(anchors)

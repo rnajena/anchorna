@@ -22,13 +22,14 @@ from anchorna.util import _apply_mode
 
 EXAMPLE_TOML_CONFIG = """### Configuration for AnchoRNA in TOML format
 
-fname = "pesti_example.gff"
+fname = "pesti_example.gff" # sequence file with CDS definition
 w = 5                      # word length
-refid = "KC533775"
-maxshift = 100
-scoring = "blosum62"
-score_add_word = 22        # score to add a word to word set
-                           # flukes with lower score are marked as "poor"
+gseqid = "KC533775"        # ID of the guiding sequence, set to "none" to take first sequence in file
+search_range = 100         # number of letters to search left and right from guiding fluke
+scoring = "blosum62"       # substition matrix used for scoring,
+                           # for possible values see https://rnajena-sugar.readthedocs.io/en/latest/search.html?q=submat
+                           # or use your own file
+score_add_word = 22        # score to add a word to word set, flukes with lower score are marked as "poor"
 thr_quota_add_anchor = 1   # discard anchor if quota is not met (1=100%)
 thr_score_add_anchor = 22  # score threshold for quota
 score_use_fluke = 22       # score to use fluke in export, view, cutout
@@ -334,8 +335,8 @@ def run_cmdline(cmd_args=None):
     p_go.add_argument('--no-logging', action='store_true', help=argparse.SUPPRESS, default=argparse.SUPPRESS)  # for testing purposes
 
     g = p_go.add_argument_group('optional arguments', description='Use these flags to overwrite values in the config file.')
-    features = [(int, ('w', 'maxshift')),
-                (str, ('fname', 'refid', 'scoring', 'logfile', 'removed-anchors-path')),
+    features = [(int, ('w', 'search-range')),
+                (str, ('fname', 'gseqid', 'scoring', 'logfile', 'removed-anchors-path')),
                 (float, ('score-add-word', 'thr-quota-add-anchor', 'thr-score-add-anchor'))]
     for type_, fs in features:
         for f in fs:

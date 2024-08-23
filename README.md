@@ -94,4 +94,4 @@ anchorna view anchors_final.gff
 
 ### Run tests
 
-Clone or download this repository cd into repository folder and call `pytest`.
+Clone or download this repository cd into tests folder and call `pytest`.
