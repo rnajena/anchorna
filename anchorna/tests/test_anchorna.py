@@ -127,8 +127,8 @@ def test_anchorna_workflow_subset():
         assert '>' in check(f'anchorna cutout anchors.gff atg>+5 end-10 --fname {fname_seqs}')
 
         seqs = read(fname_seqs)
-        seqs2 = cutout(seqs, anchors, 'start+10', 'a5-5')
-        seqs3 = cutout(seqs, anchors, 'a5-5', '*>')
+        seqs2 = cutout(seqs, anchors, 'start+10', 'a5^-5')
+        seqs3 = cutout(seqs, anchors, 'a5^-5', '*>')
         seqs4 = cutout(seqs, anchors, '*>', 'end')
         assert str(seqs[0, 10:]) == str(seqs2[0] + seqs3[0] + seqs4[0])
 
@@ -176,8 +176,8 @@ def test_anchorna_workflow_subset_poor():
         anchors = read_anchors('anchors.gff')
         check(f'anchorna cutout anchors.gff atg>+5 end-10 --fname {fname_seqs}')
         seqs = read(fname_seqs)
-        seqs2 = cutout(seqs, anchors, 'start+10', 'a5-5')
-        seqs3 = cutout(seqs, anchors, 'a5-5', '*>')
+        seqs2 = cutout(seqs, anchors, 'start+10', 'a5^-5')
+        seqs3 = cutout(seqs, anchors, 'a5^-5', '*>')
         seqs4 = cutout(seqs, anchors, '*>', 'end')
         assert str(seqs[0, 10:]) == str(seqs2[0] + seqs3[0] + seqs4[0])
 
@@ -205,8 +205,8 @@ def test_anchorna_workflow_subset_no_cds():
         with pytest.raises(ValueError):
             check(f'anchorna cutout anchors.gff atg>+5 end-10 --fname {fname_seqs}')
         seqs = read(fname_seqs)
-        seqs2 = cutout(seqs, anchors, 'start+10', 'a5-5')
-        seqs3 = cutout(seqs, anchors, 'a5-5', '*>')
+        seqs2 = cutout(seqs, anchors, 'start+10', 'a5^-5')
+        seqs3 = cutout(seqs, anchors, 'a5^-5', '*>')
         seqs4 = cutout(seqs, anchors, '*>', 'end')
         assert str(seqs[0, 10:]) == str(seqs2[0] + seqs3[0] + seqs4[0])
 

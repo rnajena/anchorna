@@ -223,7 +223,7 @@ def find_my_anchors(seqs, remove=True, aggressive_remove=True,
     return anchors.sort(), removed_anchors
 
 
-def _split_cutout_pos(pos, mode, seqs, anchors):
+def _split_cutout_pos(pos, mode, seqs, anchors, defaultB='^'):
     """
     Split a string, .i.e. "A10>+5", into its three parts A, B, C
     """
@@ -238,7 +238,7 @@ def _split_cutout_pos(pos, mode, seqs, anchors):
         if pos in ('start', 'end'):
             raise ValueError('<>^ alignment characters not allowed for start, end')
     else:
-        B = '^'
+        B = defaultB
     if pos == 'start' and C < 0:
         raise ValueError('C<0 not allowed for start')
     if pos == 'end' and C > 0:
@@ -282,8 +282,8 @@ def cutout(seqs, anchors, pos1, pos2, mode='nt', score_use_fluke=None):
     Cutout subsequences from pos1 to pos2 (i.e. between two anchors)
     """
     seqs = seqs.d
-    la, lb, lc, l_is_real_anchor = _split_cutout_pos(pos1.strip().lower(), mode, seqs, anchors)
-    ra, rb, rc, r_is_real_anchor = _split_cutout_pos(pos2.strip().lower(), mode, seqs, anchors)
+    la, lb, lc, l_is_real_anchor = _split_cutout_pos(pos1.strip().lower(), mode, seqs, anchors, defaultB='<')
+    ra, rb, rc, r_is_real_anchor = _split_cutout_pos(pos2.strip().lower(), mode, seqs, anchors, defaultB='>')
     seqs2 = BioBasket()
     for id_ in seqs:
         if (l_is_real_anchor and id_ not in la) or (r_is_real_anchor and id_ not in ra):

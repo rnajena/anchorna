@@ -315,7 +315,7 @@ def run_cmdline(cmd_args=None):
             'use special words "start" and "end" for start or end of sequence, '
             'use special words "ATG" and "*" for start or stop codon of sequence (only allowed in mode "seq") '
             'Part B: One of the characters <, >, ^, for start, end or middle of word (anchor) specified in A, '
-            'default is ^ (middle), must be ommitted for A=start or A=end. '
+            'default is < for the first anchor and > for the second anchor, must be ommitted for A=start or A=end. '
             'Part C: Additional character offset in the form +X or -X. '
             'Examples: anchorna cutout anchors.gff "a11<" "a12>+10", anchorna cutout anchors.gff a10 "*>"'
             )
