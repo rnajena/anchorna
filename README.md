@@ -46,10 +46,10 @@ anchorna go --njobs 8 anchors.gff
 # Print anchors
 anchorna print anchors.gff
 anchorna print -v anchors.gff
-anchorna print --mode seq anchors.gff
+anchorna print --mode nt anchors.gff
 
 # View anchors in Jalview (amino acid sequences)
-anchorna export anchors.gff --jalview -o jalview_fts.txt
+anchorna export anchors.gff --fmt jalview -o jalview_fts.txt
 sugar translate --cds pesti_example.gff -o pestiaa.fasta
 jalview pestiaa.fasta --features jalview_fts.txt
 # Instead of the above three lines we can just use anchorna view.
@@ -57,7 +57,7 @@ jalview pestiaa.fasta --features jalview_fts.txt
 anchorna view anchors.gff --align A1
 
 # View anchors in Jalview (nucleotide sequences)
-anchorna view --mode seq anchors.gff
+anchorna view --mode nt anchors.gff
 
 # We are not satisfied with the first anchor, remove it and check the resulting anchors in
 # Jalview, afterwards save to new anchor file

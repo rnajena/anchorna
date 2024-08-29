@@ -107,12 +107,12 @@ def test_anchorna_workflow_subset():
         out1 = check('anchorna combine anchors.gff|a5:a10|a8')
         out2 = check('anchorna combine anchors.gff|a5,a6,a7,a9')
         assert out1 == out2
-        assert 'anchor0' in check('anchorna export --jalview anchors.gff')
-        assert 'anchor0' in check('anchorna export --jalview -m seq anchors.gff')
-        assert 'anchor0' in check('anchorna export --jalview -m aa anchors.gff')
-        assert '' in check('anchorna export --jalview -m cds anchors.gff -o test_jalview.txt')
+        assert 'anchor0' in check('anchorna export --fmt jalview anchors.gff')
+        assert 'anchor0' in check('anchorna export --fmt jalview -m nt anchors.gff')
+        assert 'anchor0' in check('anchorna export --fmt jalview -m aa anchors.gff')
+        assert '' in check('anchorna export --fmt jalview -m cds anchors.gff -o test_jalview.txt')
         assert 'anchorna' in check('anchorna export anchors.gff')
-        assert 'anchorna' in check('anchorna export -m seq anchors.gff')
+        assert 'anchorna' in check('anchorna export -m nt anchors.gff')
         assert 'anchorna' in check('anchorna export -m aa anchors.gff')
         assert '' in check('anchorna export -m cds anchors.gff -o test_anchor_export.gff')
         with pytest.raises(IOError):
@@ -169,7 +169,7 @@ def test_anchorna_workflow_subset_poor():
         out1 = check('anchorna combine anchors.gff|a5:a10|a8')
         out2 = check('anchorna combine anchors.gff|a5,a6,a7,a9')
         assert out1 == out2
-        assert 'anchor0' in check('anchorna export --jalview anchors.gff')
+        assert 'anchor0' in check('anchorna export --fmt jalview anchors.gff')
         assert 'anchorna' in check('anchorna export anchors.gff')
         with patch('subprocess.run'):  # we do not want to actually start jalview here
             assert '' == check('anchorna view anchors.gff')
@@ -195,8 +195,8 @@ def test_anchorna_workflow_subset_no_cds():
         out1 = check('anchorna combine anchors.gff|a5:a10|a8')
         out2 = check('anchorna combine anchors.gff|a5,a6,a7,a9')
         assert out1 == out2
-        assert 'anchor0' in check('anchorna export --jalview anchors.gff')
-        assert 'anchor0' in check('anchorna export --jalview -m seq anchors.gff')
+        assert 'anchor0' in check('anchorna export --fmt jalview anchors.gff')
+        assert 'anchor0' in check('anchorna export --fmt jalview -m nt anchors.gff')
         assert 'anchorna' in check('anchorna export anchors.gff')
         with patch('subprocess.run'):  # we do not want to actually start jalview here
             assert '' == check('anchorna view anchors.gff')

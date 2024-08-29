@@ -193,7 +193,7 @@ def find_my_anchors(seqs, remove=True, aggressive_remove=True,
                     aa.meta.offset = 0
         else:
             all_offset = all('offset' in seq.meta for seq in seqs)
-            all_cds = all('features' in seq.meta and seq.fts.get('cds') for seq in seqs)
+            all_cds = all(seq.fts.get('cds') for seq in seqs)
             if all_offset:
                 log.info('Found offsets in sequence file, translate full sequence')
                 aas = seqs.translate(complete=True)
@@ -243,7 +243,7 @@ def _split_cutout_pos(pos, mode, seqs, anchors):
         raise ValueError('C<0 not allowed for start')
     if pos == 'end' and C > 0:
         raise ValueError('C>0 not allowed for end')
-    if pos in ('atg', '*') and mode != 'seq':
+    if pos in ('atg', '*') and mode != 'nt':
         raise ValueError(f'{pos} only allowed in mode seq')
     A = pos
     if is_real_anchor := (A not in ('start', 'end', 'atg', '*')):
@@ -262,11 +262,11 @@ def _transform_cutout_index(A, B, C, id_, seq, mode):
     elif A == 'end':
         i1 = i2 = len(seq)
     elif A == 'atg':
-        assert mode == 'seq'
+        assert mode == 'nt'
         i1 = seq.fts.get('cds').loc.start
         i2 = i1 + 3
     elif A == '*':
-        assert mode == 'seq'
+        assert mode == 'nt'
         i2 = seq.fts.get('cds').loc.stop
         i1 = i2 - 3
     else:
@@ -277,7 +277,7 @@ def _transform_cutout_index(A, B, C, id_, seq, mode):
     return i
 
 
-def cutout(seqs, anchors, pos1, pos2, mode='seq', score_use_fluke=None):
+def cutout(seqs, anchors, pos1, pos2, mode='nt', score_use_fluke=None):
     """
     Cutout subsequences from pos1 to pos2 (i.e. between two anchors)
     """
@@ -296,9 +296,9 @@ def cutout(seqs, anchors, pos1, pos2, mode='seq', score_use_fluke=None):
         i = _transform_cutout_index(la, lb, lc, id_, seqs[id_], mode)
         j = _transform_cutout_index(ra, rb, rc, id_, seqs[id_], mode)
         seq2 = seqs[id_][i:j]
-        if mode == 'seq':
+        if mode == 'nt':
             seq2.meta.offset = i
-            seq2.meta.pop('features', None)
+            seq2.meta.pop('fts', None)
         seqs2.append(seq2)
     return seqs2
 

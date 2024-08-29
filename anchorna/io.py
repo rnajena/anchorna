@@ -154,7 +154,7 @@ def jalview_features(anchors, mode='aa', score_use_fluke=None):
     """
     Write anchors to Jalview feature file
     """
-    assert mode in ('seq', 'cds', 'aa')
+    assert mode in ('nt', 'cds', 'aa')
     anchors = sorted(anchors, key=lambda a: a.guide.start)
     content = []
     header = []

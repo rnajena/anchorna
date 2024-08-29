@@ -25,9 +25,9 @@ class Fluke(Attr):
 def _apply_mode(i, o, mode, islen=False):
     if mode == 'aa':
         return i
-    elif mode == 'cds' or mode == 'seq' and islen:
+    elif mode == 'cds' or mode == 'nt' and islen:
         return 3 * i
-    elif mode == 'seq':
+    elif mode == 'nt':
         return 3 * i + o
     raise ValueError('mode not allowed')
 
