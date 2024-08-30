@@ -199,20 +199,20 @@ def find_my_anchors(seqs, remove=True, aggressive_remove=True,
                 aas = seqs.translate(complete=True)
             elif all_cds:
                 log.info('Found CDS features in sequence file, translate CDS')
-                aas = seqs['cds'].translate(complete=True, final_stop=False)
+                aas = seqs['cds'].translate(complete=True, final_stop=False, warn=True)
                 for aa in aas:
                     aa.meta.offset = aa.fts.get('cds').loc.start
             else:
                 raise ValueError('Did not found CDS annotation or offset for at least one sequence')
-            log.debug('result of translation are {}'.format(aas.tostr(h=0)))
+            log.debug('Result of translation are {}'.format(aas.tostr(h=0)))
             for aa in aas:
                 if '*' in str(aa):
-                    log.warning(f'Stop codon in aa sequence {aa.id}')
-        log.info('find anchors for specified word length')
+                    log.warning(f'Stop codon in the middle of sequence {aa.id}')
+        log.info('Find anchors for specified word length')
         anchors = find_anchors_winlen(aas, **kw)
-        log.info(f'found {len(anchors)} anchors')
+        log.info(f'Found {len(anchors)} anchors')
         anchors = anchors.merge_neighbor_anchors()
-        log.info(f'merged into {len(anchors)} anchors')
+        log.info(f'Merged into {len(anchors)} anchors')
     else:
         anchors = continue_with
     if remove:
