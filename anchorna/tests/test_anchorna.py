@@ -5,8 +5,9 @@ import io
 import os
 from pathlib import Path
 from subprocess import check_output
+import sys
 import tempfile
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from warnings import warn
 
 import pytest
@@ -228,3 +229,24 @@ def test_reproduce_anchor_file_complete():
             shutil.copy(tmpdir / 'anchors.gff', fname)
             anchors2 = read_anchors(fname)
     assert anchors2 == anchors
+
+
+@pytest.mark.slowtest
+def test_tutorial():
+    fname = files('anchorna').joinpath('../README.md')
+    if not os.path.exists(fname):
+        pytest.skip('README.md only available in dev install')
+    with open(fname) as f:
+        readme = f.read()
+    i1 = readme.find('anchorna go')
+    i2 = readme.find('```', i1) + i1
+    tutorial = 'anchorna create --tutorial\n' + readme[i1:i2]
+    tutorial = tutorial.replace('"A??>" "A??<"', '"A33>" "A34<"')
+    sys.modules['IPython'] = MagicMock()
+    with _changetmpdir():
+        with patch('subprocess.run'):
+            for line in tutorial.splitlines():
+                if line.startswith('anchorna'):
+                    line = line.replace('| anchorna view -', '').replace('"', '')
+                    line = line.split('#')[0].strip()
+                    check(line)
