@@ -220,6 +220,9 @@ def find_my_anchors(seqs, remove=True, aggressive_remove=True,
         log.info(f'After removal of contradicting anchors {len(anchors)} anchors left')
     else:
         removed_anchors = None
+    if no_cds:
+        anchors.no_cds = True
+        removed_anchors.no_cds = True
     return anchors.sort(), removed_anchors
 
 
@@ -255,7 +258,7 @@ def _split_cutout_pos(pos, mode, seqs, anchors, defaultB='^'):
 
 def _transform_cutout_index(A, B, C, id_, seq, mode):
     """
-    Transform a fluke and position given by A,B,C to and an integer index
+    Transform a fluke and position given by A,B,C to an integer index
     """
     if A == 'start':
         i1 = i2 = 0

@@ -112,6 +112,8 @@ def _tutorial_seqs(subset=False):
         for i in range(len(seqs)):
             seqs[i] = seqs[i][:start + 999] + seqs[i][stop:]
             seqs[i].fts[0].loc.stop -= stop-start - 999
+            istop = seqs[i].fts[0].loc.stop
+            seqs[i][istop-3:istop] = 'TGA'
     return seqs
 
 
@@ -196,15 +198,21 @@ def _cmd_view(fname_anchor, fname, mode='aa', no_cds=False, align=None, score_us
         fnameseq = Path(tmpdir) / 'aa_or_seq_or_cds.fasta'
         _cmd_export(fname_anchor, fname_export, mode=mode, score_use_fluke=score_use_fluke, fmt='jalview')
         seqs = read(fname)
+        anchors = read_anchors(fname_anchor)
         if mode != 'nt' and not no_cds:
-            anchors = read_anchors(fname_anchor)
             offsets = {f.seqid: f.offset for anchor in anchors for f in anchor}
-            for seq in seqs:
-                seq.data = seq.data[offsets[seq.id]:]
+            if all(seq.fts.get('cds') for seq in seqs):
+                offsets_cds = {seq.id: seq.fts.get('cds').loc.start for seq in seqs}
+            else:
+                offsets_cds = None
+            if offsets_cds == offsets:
+                seqs = seqs[:, 'cds']
+            else:
+                for seq in seqs:
+                    seq.data = seq.data[offsets[seq.id]:]
             if mode == 'aa':
-                seqs = seqs.translate(check_start=False)
+                seqs = seqs.translate(check_start=False, complete=True)
         if align:
-            anchors = read_anchors(fname_anchor)
             anchor = anchors[int(align.lower().removeprefix('a'))]
             start = max(_apply_mode(fluke.start, fluke.offset, mode=mode) for fluke in anchor)
             for seq in seqs:
@@ -350,7 +358,6 @@ def run_cmdline(cmd_args=None):
             g.add_argument('--fname', default=argparse.SUPPRESS)
         g.add_argument('--score-use-fluke', default=argparse.SUPPRESS, type=int)
         g.add_argument('--no-cds', action='store_true', default=argparse.SUPPRESS)
-
 
     p_export.add_argument('fname_anchor', help='anchor file name')
     p_export.add_argument('-o', '--out', help='output file name (by default prints to stdout)')
