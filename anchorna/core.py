@@ -185,14 +185,13 @@ def find_my_anchors(seqs, remove=True, aggressive_remove=True,
     Find and return anchors in CDS region of nucleotide sequences
     """
     if continue_with is None:
+        all_offset = all('offset' in seq.meta for seq in seqs)
         if no_cds:
             aas = seqs
-            all_offset = all('offset' in seq.meta for seq in seqs)
             if not all_offset:
                 for aa in aas:
                     aa.meta.offset = 0
         else:
-            all_offset = all('offset' in seq.meta for seq in seqs)
             all_cds = all(seq.fts.get('cds') for seq in seqs)
             if all_offset:
                 log.info('Found offsets in sequence file, translate full sequence')
@@ -213,6 +212,7 @@ def find_my_anchors(seqs, remove=True, aggressive_remove=True,
         log.info(f'Found {len(anchors)} anchors')
         anchors = anchors.merge_neighbor_anchors()
         log.info(f'Merged into {len(anchors)} anchors')
+        anchors.no_cds = no_cds
     else:
         anchors = continue_with
     if remove:
@@ -220,9 +220,6 @@ def find_my_anchors(seqs, remove=True, aggressive_remove=True,
         log.info(f'After removal of contradicting anchors {len(anchors)} anchors left')
     else:
         removed_anchors = None
-    if no_cds:
-        anchors.no_cds = True
-        removed_anchors.no_cds = True
     return anchors.sort(), removed_anchors
 
 
@@ -314,6 +311,11 @@ def combine(lot_of_anchors):
     """
     anchors = set()
     offsets = {f.seqid: f.offset for anchor in lot_of_anchors[0] for f in anchor}
+    no_cds_set = set(anchors.no_cds for anchors in lot_of_anchors)
+    if len(no_cds_set) > 1:
+        raise ValueError('Some anchors calculated with no_cds option, some without')
+    no_cds = no_cds_set.pop()
+    div = 1 if no_cds else 3
     for nans in lot_of_anchors:
         if len(set(nans) & anchors) > 0:
             ids = ', '.join(a.id for a in nans & anchors)
@@ -322,7 +324,7 @@ def combine(lot_of_anchors):
             for f in anchor:
                 doff = f.offset - offsets[f.seqid]
                 f.offset = offsets[f.seqid]
-                f.start += doff // 3
-                f.stop += doff // 3
+                f.start += doff // div
+                f.stop += doff // div
         anchors |= set(nans)
-    return AnchorList(anchors).sort()
+    return AnchorList(anchors, no_cds=no_cds).sort()

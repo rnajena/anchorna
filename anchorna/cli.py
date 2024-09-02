@@ -167,6 +167,8 @@ def _cmd_go(fname, fname_anchor, pbar=True, continue_with=None,
 
 def _cmd_print(fname_anchor, verbose=False, mode='aa'):
     anchors = load_selected_anchors(fname_anchor)
+    if anchors.no_cds:
+        mode = 'aa'
     try:
         print(anchors.tostr(verbose=verbose, mode=mode))
     except BrokenPipeError:
@@ -178,6 +180,8 @@ def _cmd_load(fname_anchor):
 def _cmd_export(fname_anchor, out, mode='aa', score_use_fluke=None, fmt='gff'):
     assert mode in ('nt', 'cds', 'aa')
     anchors = load_selected_anchors(fname_anchor)
+    if anchors.no_cds:
+        mode = 'aa'
     if fmt == 'jalview':
         outstr = jalview_features(anchors, mode=mode, score_use_fluke=score_use_fluke)
         if out is None:
@@ -191,7 +195,7 @@ def _cmd_export(fname_anchor, out, mode='aa', score_use_fluke=None, fmt='gff'):
         anchors.write(out, mode=mode)
 
 
-def _cmd_view(fname_anchor, fname, mode='aa', no_cds=False, align=None, score_use_fluke=None):
+def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
     assert mode in ('nt', 'cds', 'aa')
     with tempfile.TemporaryDirectory(prefix='anchorna') as tmpdir:
         fname_export = Path(tmpdir) / 'jalview_features.txt'
@@ -199,7 +203,9 @@ def _cmd_view(fname_anchor, fname, mode='aa', no_cds=False, align=None, score_us
         _cmd_export(fname_anchor, fname_export, mode=mode, score_use_fluke=score_use_fluke, fmt='jalview')
         seqs = read(fname)
         anchors = read_anchors(fname_anchor)
-        if mode != 'nt' and not no_cds:
+        if anchors.no_cds:
+            mode = 'aa'
+        if mode != 'nt' and not anchors.no_cds:
             offsets = {f.seqid: f.offset for anchor in anchors for f in anchor}
             if all(seq.fts.get('cds') for seq in seqs):
                 offsets_cds = {seq.id: seq.fts.get('cds').loc.start for seq in seqs}
@@ -207,11 +213,13 @@ def _cmd_view(fname_anchor, fname, mode='aa', no_cds=False, align=None, score_us
                 offsets_cds = None
             if offsets_cds == offsets:
                 seqs = seqs[:, 'cds']
+                if mode == 'aa':
+                    seqs = seqs.translate(complete=True, final_stop=False)
             else:
                 for seq in seqs:
                     seq.data = seq.data[offsets[seq.id]:]
-            if mode == 'aa':
-                seqs = seqs.translate(check_start=False, complete=True)
+                if mode == 'aa':
+                    seqs = seqs.translate(complete=True)
         if align:
             anchor = anchors[int(align.lower().removeprefix('a'))]
             start = max(_apply_mode(fluke.start, fluke.offset, mode=mode) for fluke in anchor)
@@ -226,12 +234,12 @@ def _cmd_combine(fname_anchor, out):
     anchors = combine(lot_of_anchors)
     anchors.write(out)
 
-def _cmd_cutout(fname, fname_anchor, pos1, pos2, out, fmt, mode='nt', score_use_fluke=None, no_cds=False):
+def _cmd_cutout(fname, fname_anchor, pos1, pos2, out, fmt, mode='nt', score_use_fluke=None):
     assert mode in ('nt', 'cds', 'aa')
-    if no_cds:
-        mode = 'aa'
     seqs = read(fname)
     anchors = load_selected_anchors(fname_anchor)
+    if anchors.no_cds:
+        mode = 'aa'
     seqs2 = cutout(seqs, anchors, pos1, pos2, mode=mode, score_use_fluke=score_use_fluke)
     if out is None:
         print(seqs2.tofmtstr(fmt or 'fasta'))
@@ -256,7 +264,7 @@ def run(command, conf=None, pdb=False, **args):
         conf = {}
     if command in ('export', 'view', 'cutout'):
         # ignore all config settings except the following
-        conf = {k: conf[k] for k in ('fname', 'score_use_fluke', 'no_cds') if k in conf}
+        conf = {k: conf[k] for k in ('fname', 'score_use_fluke') if k in conf}
     # Populate args with conf, but prefer args
     conf.update(args)
     args = conf
@@ -268,11 +276,6 @@ def run(command, conf=None, pdb=False, **args):
             print()
             pdb.pm()
         sys.excepthook = info
-    # for no_cds, commands create, go, view and cutout expect this argument,
-    # for other commands the default mode is already the correct one
-    if getattr(args, 'pop' if command == 'export' else 'get')('no_cds', False):
-        if 'mode' in args:
-            raise ValueError('Mode may not be specified with --no-cds option')
     try:
         globals()[f'_cmd_{command}'](**args)
     except KeyError:
@@ -357,7 +360,7 @@ def run_cmdline(cmd_args=None):
         if p != p_export:
             g.add_argument('--fname', default=argparse.SUPPRESS)
         g.add_argument('--score-use-fluke', default=argparse.SUPPRESS, type=int)
-        g.add_argument('--no-cds', action='store_true', default=argparse.SUPPRESS)
+        # g.add_argument('--no-cds', action='store_true', default=argparse.SUPPRESS)
 
     p_export.add_argument('fname_anchor', help='anchor file name')
     p_export.add_argument('-o', '--out', help='output file name (by default prints to stdout)')
@@ -384,7 +387,7 @@ def run_cmdline(cmd_args=None):
         default = 'nt' if p == p_cutout else 'aa'
         msg = ('choose mode, nt: relative to original sequence, '
                'cds: accounting for offset (usually coding sequence), aa: translated cds '
-               f'(default: {default})')
+               f'(default: {default}), for anchors calculated with no_cds option, mode is ignored')
         p.add_argument('-m', '--mode', default=argparse.SUPPRESS, choices=choices, help=msg)
 
     # Get command line arguments and start run function

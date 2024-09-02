@@ -191,6 +191,18 @@ def test_anchorna_workflow_subset_no_cds():
         fname_seqs = tmpdir / 'pesti_example.gff'
         assert '' == check('anchorna create --tutorial-subset --no-cds')
         assert '' == check('anchorna go --no-pbar anchors.gff')
+        anchors1 = read_anchors('anchors.gff')
+        assert anchors1.no_cds
+
+        assert '' == check('anchorna create --tutorial-subset')
+        assert '' == check('anchorna go --no-pbar anchors_cds.gff')
+        anchors2 = read_anchors('anchors_cds.gff')
+        anchors2.no_cds = True
+        for anchor in anchors2:
+            for fluke in anchor:
+                fluke.offset = 0
+        assert anchors1 == anchors2
+
         assert 'A11' in check('anchorna print anchors.gff')
         assert 'F1' in check('anchorna print anchors.gff -v')
         out1 = check('anchorna combine anchors.gff|a5:a10|a8')

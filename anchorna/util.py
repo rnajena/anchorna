@@ -177,8 +177,10 @@ class Anchor(collections.UserList):
 
 
 class AnchorList(collections.UserList):
-    def __init__(self, data=None):
+    def __init__(self, data=None, no_cds=False):
         super().__init__(data)
+        if no_cds:
+            self._no_cds = True
 
     def __str__(self):
         return self.tostr()
@@ -188,6 +190,15 @@ class AnchorList(collections.UserList):
             p.text('...')
         else:
             p.text(str(self))
+
+    @property
+    def no_cds(self):
+        return getattr(self, '_no_cds', False)
+
+    @no_cds.setter
+    def no_cds(self, value):
+        if value:
+            self._no_cds = True
 
     def tostr(self, verbose=False, mode='aa'):
         return '\n'.join(a.tostr(i=i, verbose=verbose, mode=mode) for i, a in enumerate(self))
@@ -232,7 +243,7 @@ class AnchorList(collections.UserList):
                               f'keep anchor {a1.guide.start}+{a1.guide.len} with min score {a1.minscore}')
                     remove_anchors.add(a2)
         self.data = [anchor for anchor in self if anchor not in remove_anchors]
-        return AnchorList(remove_anchors).sort()
+        return AnchorList(remove_anchors, no_cds=self.no_cds).sort()
 
     def convert2fts(self):
         return anchors2fts(self)
@@ -272,7 +283,7 @@ def anchors2fts(anchors):
     return FeatureList(fts)
 
 
-def fts2anchors(fts):
+def fts2anchors(fts, no_cds=False):
     """
     Convert sugar.FeatureList object to anchors
 
@@ -302,4 +313,4 @@ def fts2anchors(fts):
             warn(f'Cannot convert feature of type {ft.type}')
     if len(flukes) > 0:
         anchors.append(Anchor(flukes, gseqid=gseqid))
-    return AnchorList(anchors)
+    return AnchorList(anchors, no_cds=no_cds)

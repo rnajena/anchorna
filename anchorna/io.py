@@ -27,11 +27,14 @@ def write_anchors(anchors, fname, mode=None):
     offsets = {ft.seqid: ft.meta._gff.pop('offset') for ft in fts}
     offsets_header = ''.join(f'#offset {seqid} {offset}\n' for seqid, offset in offsets.items())
     if mode is None:
+        header_cds = '#no_cds\n' if anchors.no_cds else (
+            '# Indices are given for amino acids, the offset specifies the offset of index 0 from this file\n'
+            '# to the beginning of the original sequence (in nucleotides).\n'
+            )
+
         header = (
             f'#AnchoRNA anchor file\n'
-            f'# written with AnchoRNA v{__version__}\n'
-            '# Indices are given for amino acids, the offset specifies the offset of index 0 from this file\n'
-            '# to the beginning of the original sequence (in nucleotides).\n' + offsets_header)
+            f'# written with AnchoRNA v{__version__}\n' + header_cds + offsets_header)
     else:
         header = f'# Anchors exported by AnchoRNA v{__version__} with mode {mode}\n'
     if fname is None:
@@ -52,6 +55,7 @@ def read_anchors(fname, check_header=True):
     comments = []
     fts = read_fts(fname, 'gff', comments=comments)
     offsets = {}
+    no_cds = False
     for i, line in enumerate(comments):
         if i == 0:
             if check_header and not line.startswith('##gff-version 3'):
@@ -59,6 +63,8 @@ def read_anchors(fname, check_header=True):
         elif i == 1:
             if check_header and not line.startswith('#AnchoRNA'):
                 raise IOError(f'{fname} not a valid anchor file')
+        elif line.startswith('#no_cds'):
+            no_cds = True
         elif line.startswith('#offset'):
             seqid, offset = line.split()[1:]
             offsets[seqid] = int(offset)
@@ -66,7 +72,7 @@ def read_anchors(fname, check_header=True):
             continue
     for ft in fts:
         ft.meta._gff.offset = offsets[ft.seqid]
-    return fts2anchors(fts)
+    return fts2anchors(fts, no_cds=no_cds)
 
 
 def _parse_selection(anchors, selection):
