@@ -170,8 +170,8 @@ def jalview_features(anchors, mode='aa', score_use_fluke=None):
             if score_use_fluke is not None and f.score < score_use_fluke:
                 continue
             # anchor2	C_CSFV_KC533775	-1	130	150	anchorsim	1.0
-            # anhcor100	D_BDV_NC_003679	-1	10	20	anchorxx
-            wlen = a.guide.len
+            # anchor100	D_BDV_NC_003679	-1	10	20	anchorxx
+            w = a.guide.len
             score_ = max(1, f.median_score) / a.maxscore
             c = to_hex(_make_rgb_transparent(cols[k % len(cols)], 'white', score_)).strip('#')
             al = f'anchor{k}_s{f.median_score}'
@@ -180,6 +180,6 @@ def jalview_features(anchors, mode='aa', score_use_fluke=None):
                 )
             i = _apply_mode(f.start, f.offset, mode)
             j = _apply_mode(f.stop, f.offset, mode)
-            content.append(f'{f.word[:5]} w{wlen} poor:{poor}\t{f.seqid}\t-1\t{i+1}\t{j}\t{al}\n')
+            content.append(f'{f.word[:5]} w{w} poor:{poor}\t{f.seqid}\t-1\t{i+1}\t{j}\t{al}\n')
     header.append('\nSTARTFILTERS\nENDFILTERS\n\n')
     return ''.join(header) + ''.join(content)

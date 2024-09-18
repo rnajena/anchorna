@@ -199,7 +199,7 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
     assert mode in ('nt', 'cds', 'aa')
     with tempfile.TemporaryDirectory(prefix='anchorna') as tmpdir:
         fname_export = Path(tmpdir) / 'jalview_features.txt'
-        fnameseq = Path(tmpdir) / 'aa_or_seq_or_cds.fasta'
+        fname_seq = Path(tmpdir) / 'aa_or_seq_or_cds.fasta'
         _cmd_export(fname_anchor, fname_export, mode=mode, score_use_fluke=score_use_fluke, fmt='jalview')
         seqs = read(fname)
         anchors = read_anchors(fname_anchor)
@@ -226,8 +226,8 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
             for seq in seqs:
                 fluke = anchor.d[seq.id]
                 seq.data = '-' * (start - _apply_mode(fluke.start, fluke.offset, mode=mode)) + seq.data
-        seqs.write(fnameseq)
-        subprocess.run(f'jalview {fnameseq} --features {fname_export}'.split())
+        seqs.write(fname_seq)
+        subprocess.run(f'jalview {fname_seq} --features {fname_export}'.split())
 
 def _cmd_combine(fname_anchor, out):
     lot_of_anchors = [load_selected_anchors(fn) for fn in fname_anchor]
@@ -321,12 +321,12 @@ def run_cmdline(cmd_args=None):
             'Combine the found anchors with the anchorna combine command. '
             '2. Cutout sequences to use them in external tool. '
             'The cutout command expects two positions in the sequence. '
-            'Each possition has 3 parts ABC where B and C are optional. '
+            'Each position has 3 parts ABC where B and C are optional. '
             'Part A: Is a number or number prepended with letter a to specify the anchor number, '
             'use special words "start" and "end" for start or end of sequence, '
             'use special words "ATG" and "*" for start or stop codon of sequence (only allowed in mode "seq") '
             'Part B: One of the characters <, >, ^, for start, end or middle of word (anchor) specified in A, '
-            'default is < for the first anchor and > for the second anchor, must be ommitted for A=start or A=end. '
+            'default is < for the first anchor and > for the second anchor, must be omitted for A=start or A=end. '
             'Part C: Additional character offset in the form +X or -X. '
             'Examples: anchorna cutout anchors.gff "a11<" "a12>+10", anchorna cutout anchors.gff a10 "*>"'
             )

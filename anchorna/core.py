@@ -100,8 +100,8 @@ def anchor_at_pos(i, aas, w, gseqid, search_range,
             score, j = shift_and_find_best_word(aa, gword, i, winlen, submat(scoring), maxshiftl, maxshiftr)
             if j is None:
                 raise ValueError('zero length sequence - that should not happen')
-            # The lowest object is poped from heap.
-            # Therefore, we add -score as first elemnt.
+            # The lowest object is popped from heap.
+            # Therefore, we add -score as first element.
             # abs(j-i) is the tiebreaker
             heappush(toadd, (-score, abs(j-i), score, j, id_))
         while len(toadd) > 0:
@@ -287,7 +287,7 @@ def cutout(seqs, anchors, pos1, pos2, mode='nt', score_use_fluke=None):
     seqs2 = BioBasket()
     for id_ in seqs:
         if (l_is_real_anchor and id_ not in la) or (r_is_real_anchor and id_ not in ra):
-            raise ValueError(f'No fluke found for sequence {id_}, this should not happen, contact devs')
+            raise ValueError(f'No fluke found for sequence {id_}, this should not happen, contact developers')
         if score_use_fluke is not None and (
                 (l_is_real_anchor and la[id_].score < score_use_fluke) or
                 (r_is_real_anchor and ra[id_].score < score_use_fluke)):
