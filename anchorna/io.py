@@ -165,14 +165,12 @@ def _make_rgb_transparent(rgb, bg_rgb, alpha):
             for (c1, c2) in zip(to_rgb(rgb), to_rgb(bg_rgb))]
 
 
-cols = list(mcolors.TABLEAU_COLORS.values())
-to_hex(cols[0], 0.3)
-
 def jalview_features(anchors, mode='aa', score_use_fluke=None):
     """
     Write anchors to Jalview feature file
     """
     assert mode in ('nt', 'cds', 'aa')
+    cols = list(mcolors.TABLEAU_COLORS.values())
     anchors = sorted(anchors, key=lambda a: a.guide.start)
     content = []
     header = []
