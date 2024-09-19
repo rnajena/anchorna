@@ -1,0 +1,3 @@
+# requirements to build the docs
+furo
+sphinx

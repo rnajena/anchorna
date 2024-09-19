@@ -1,28 +1,42 @@
 # (C) 2024, Tom Eulenfeld, MIT license
+"""
+`.Fluke`, `.Anchor` and `.AnchorList` classes providing useful attributes and methods
+"""
 
 import collections
 import logging
 from statistics import median
 from warnings import warn
 
-from sugar import Attr
-from sugar.data import submat
-
+from sugar.core.meta import Attr
 
 log = logging.getLogger('anchorna')
 
 
-def corrscore(seq1, seq2, gap='-', sm=submat('blosum62')):
+def corrscore(seq1, seq2, gap='-', sm=None):
+    """Similarity score between two words"""
+    if sm is None:
+        from sugar.data import submat
+        sm = submat('blosum62')
     return sum(sm[nt1][nt2] for nt1, nt2 in zip(seq1, seq2) if nt1 != gap and nt2 != gap)
 
 
 class Fluke(Attr):
+    """
+    A fluke is a word position on a single sequence and part of an `Anchor`
+
+    Properties: id, seqid, score, median_score, start, stop,
+    offset, word, poor.
+    """
     @property
     def len(self):
         return self.stop - self.start
 
 
 def _apply_mode(i, o, mode, islen=False):
+    """
+    Transform index, allowed modes are ``'aa', 'cds', 'nt'``
+    """
     if mode == 'aa':
         return i
     elif mode == 'cds' or mode == 'nt' and islen:
@@ -33,6 +47,12 @@ def _apply_mode(i, o, mode, islen=False):
 
 
 class Anchor(collections.UserList):
+    """
+    A single Anchor is a list of `Flukes <Fluke>`, one for each sequence
+
+    Some properties: data (list of flukes), id, gseqid, guide,
+    minscore (aka score), maxscore, medscore.
+    """
     def __init__(self, data=None, **kw):
         super().__init__(data)
         for k, v in kw.items():
@@ -151,7 +171,7 @@ class Anchor(collections.UserList):
                         start = stop - l
                 nword = f1.word + f2.word[overlaplen:] if f1.start <= f2.start else f2.word + f1.word[overlaplen:]
                 assert len(nword) == l
-                fluke = Fluke(seqid=f1.seqid, score=None,
+                fluke = Fluke(seqid=f1.seqid, score=None, median_score=None,
                               start=start, stop=stop, offset=f1.offset, word=nword,
                               poor=f1.poor)
                 flukes.append(fluke)
@@ -177,6 +197,9 @@ class Anchor(collections.UserList):
 
 
 class AnchorList(collections.UserList):
+    """
+    Collection of `Anchors <Anchor>` with useful methods
+    """
     def __init__(self, data=None, no_cds=False):
         super().__init__(data)
         if no_cds:
@@ -207,7 +230,10 @@ class AnchorList(collections.UserList):
         self.data = sorted(self, key=key, **kw)
         return self
 
-    def merge_neighbor_anchors(self):
+    def merge_overlapping_anchors(self):
+        """
+        Remove overlapping anchors, step B of ``anchorna go``
+        """
         self.sort()
         already_merged = set()
         ndata = []
@@ -227,6 +253,9 @@ class AnchorList(collections.UserList):
         return self
 
     def remove_contradicting_anchors(self, aggressive=True):
+        """
+        Remove contradicting anchors, step C of ``anchorna go``
+        """
         # The runtime of this method can be enhanced by using an interval tree or a nested containment list.
         # But this method is not the bottleneck at all.
         anchors = sorted(self, key=lambda a: a.minscore, reverse=True)
@@ -246,18 +275,24 @@ class AnchorList(collections.UserList):
         return AnchorList(remove_anchors, no_cds=self.no_cds).sort()
 
     def convert2fts(self):
+        """
+        Convert anchors to `~sugar.core.fts.FeatureList` object
+        """
         return anchors2fts(self)
 
     def write(self, fname, **kw):
+        """
+        Write anchors to GFF file, see `.write_anchors()`
+        """
         from anchorna.io import write_anchors
         return write_anchors(self, fname, **kw)
 
 
 def anchors2fts(anchors):
     """
-    Convert anchors to sugar.FeatureList object
+    Convert anchors to `~sugar.core.fts.FeatureList` object
 
-    Write some important attributes to Feature.meta._gff metadata.
+    Write some important attributes to ``Feature.meta._gff`` metadata.
     """
     from sugar import Feature, FeatureList
     fts = []
@@ -285,9 +320,9 @@ def anchors2fts(anchors):
 
 def fts2anchors(fts, no_cds=False):
     """
-    Convert sugar.FeatureList object to anchors
+    Convert `~sugar.core.fts.FeatureList` object to anchors
 
-    Read some important attributes from Feature.meta._gff metadata.
+    Read some important attributes from ``Feature.meta._gff`` metadata.
     """
     anchors = []
     flukes = []

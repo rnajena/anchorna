@@ -1,4 +1,7 @@
 # (C) 2024, Tom Eulenfeld, MIT license
+"""
+CLI of AnchoRNA
+"""
 
 import argparse
 from copy import deepcopy
@@ -248,6 +251,9 @@ def _cmd_cutout(fname, fname_anchor, pos1, pos2, out, fmt, mode='nt', score_use_
 
 
 def run(command, conf=None, pdb=False, **args):
+    """
+    Dispatch command and call the corresponding function
+    """
     if command == 'create':
         return _cmd_create(conf, **args)
     if conf:
@@ -283,7 +289,11 @@ def run(command, conf=None, pdb=False, **args):
 
 
 def run_cmdline(cmd_args=None):
-    """Main entry point from the command line"""
+    """
+    Main entry point from the command line
+
+    Parse arguments and call `run()`.
+    """
     from anchorna import __version__
     msg = 'AnchoRNA: Find anchors in short sequences of RNA/DNA'
     epilog = ('To get help on a subcommand run: anchorna command -h. '

@@ -1,4 +1,10 @@
-# (C) 2023, Tom Eulenfeld, MIT license
+# (C) 2024, Tom Eulenfeld, MIT license
+"""
+Find anchors with `.find_my_anchors()`
+
+The module also provides `.combine()` to combine/select/remove anchors and
+`.cutout()` to cut out subsequences.
+"""
 
 from functools import partial
 from heapq import heappush, heappop
@@ -63,18 +69,21 @@ def anchor_at_pos(i, aas, w, gseqid, search_range,
     Find an anchor for a specific position i in the guiding sequence gseqid
 
     Return anchor or None, for description of options,
-    see example configuration file.
+    see example configuration file and ``anchorna go -h``.
 
     1) Add fluke at position i for gseqid to anchor, set word to gword, set words set to {word}
     2) Add all other ids to todo list
     3) Until todo list is empty
+
       a) find best (score, index j) with word for each sequence in todo and add (score, j, seqid) to heap
       b) pop (score, j, seqid) pair with highest score from heap, until empty
+
         - if seqid not in todo -> continue 3b)
         - add to anchor, remove seqid from todos
         - if score < thr_score_add_anchor, check if thr_quota_add_anchor can still be fulfilled,
           otherwise return None (no anchor found)
         - if new word not in words, add it to words and set as new word, break loop 3b)
+
     4) Recalculate score, create and return anchor
     """
     if thr_score_add_anchor < score_add_word:  # there might be anchors with only poor flukes
@@ -161,6 +170,9 @@ def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True):
 def find_anchors_winlen(aas, w, gseqid, indexrange=None, anchors=None, njobs=0, pbar=True, **kw):
     """
     Find multiple anchors in aa sequences for a specific word length
+
+    Calls `anchor_at_pos()` for each position in the guiding sequence,
+    possibly in parallel.
     """
     if str(gseqid).lower() in ('none', 'null'):
         gseqid = aas[0].id
@@ -183,6 +195,17 @@ def find_my_anchors(seqs, remove=True, aggressive_remove=True,
                     continue_with=None, no_cds=False, **kw):
     """
     Find and return anchors in CDS region of nucleotide sequences
+
+    This function is called by the ``anchorna go`` command.
+    For a description of arguments see the example configuration file and
+    the CLI help.
+    The function applies three steps:
+
+        | A Find anchors of predefined word length in all sequences,
+            this is done in the `find_anchors_winlen()` function,
+            unresolved kwargs are passed on,
+        | B Merge overlapping anchors with `.AnchorList.merge_overlapping_anchors()` and
+        | C Remove conflicting anchors with `.AnchorList.remove_contradicting_anchors()`.
     """
     if continue_with is None:
         all_offset = all('offset' in seq.meta for seq in seqs)
@@ -210,7 +233,7 @@ def find_my_anchors(seqs, remove=True, aggressive_remove=True,
         log.info('Find anchors for specified word length')
         anchors = find_anchors_winlen(aas, **kw)
         log.info(f'Found {len(anchors)} anchors')
-        anchors = anchors.merge_neighbor_anchors()
+        anchors = anchors.merge_overlapping_anchors()
         log.info(f'Merged into {len(anchors)} anchors')
         anchors.no_cds = no_cds
     else:
@@ -280,6 +303,8 @@ def _transform_cutout_index(A, B, C, id_, seq, mode):
 def cutout(seqs, anchors, pos1, pos2, mode='nt', score_use_fluke=None):
     """
     Cutout subsequences from pos1 to pos2 (i.e. between two anchors)
+
+    For help about this command and about how to define positions, see ``anchorna cutout -h``.
     """
     seqs = seqs.d
     la, lb, lc, l_is_real_anchor = _split_cutout_pos(pos1.strip().lower(), mode, seqs, anchors, defaultB='<')
@@ -308,6 +333,7 @@ def combine(lot_of_anchors):
     Combine lists of anchors into a single AnchorList
 
     Deal with possibly different offset values.
+    Is called by ``anchorna combine``.
     """
     anchors = set()
     offsets = {f.seqid: f.offset for anchor in lot_of_anchors[0] for f in anchor}

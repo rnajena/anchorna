@@ -1,6 +1,7 @@
 ### AnchoRNA
 [![build status](https://github.com/rnajena/anchorna/workflows/tests/badge.svg)](https://github.com/rnajena/anchorna/actions)
 [![codecov](https://codecov.io/gh/rnajena/anchorna/branch/master/graph/badge.svg)](https://codecov.io/gh/rnajena/anchorna)
+[![docs status](https://readthedocs.org/projects/anchorna/badge/?version=latest)](https://anchorna.readthedocs.io)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.12190267.svg)](https://doi.org/10.5281/zenodo.12190267)
 
 Find anchors in RNA/DNA sequences.
@@ -30,6 +31,7 @@ To install the package in editable mode, clone the repository and install with `
 ### Usage & Tutorial
 
 A command line tool is provided, see `anchorna -h` and the help of subcommands. An example configuration file can be created with `anchorna create`.
+See the example configuration file for a description of AnchoRNA's options. Consult the (API documentation)[https://anchorna.readthedocs.io] for details.
 
 Start the tutorial with
 
@@ -48,13 +50,14 @@ anchorna print anchors.gff
 anchorna print -v anchors.gff
 anchorna print --mode nt anchors.gff
 
-# View anchors in Jalview (amino acid sequences)
+# View anchors in Jalview (amino acid sequences) and
+# align with the second anchor
+anchorna view anchors.gff --align A1
+# For reference, the following commands are called under the hood
+# by anchorna view
 anchorna export anchors.gff --fmt jalview -o jalview_fts.txt
 sugar translate --cds pesti_example.gff -o pestiaa.fasta
 jalview pestiaa.fasta --features jalview_fts.txt
-# Instead of the above three lines we can just use anchorna view.
-# Here, we additional align with the second anchor.
-anchorna view anchors.gff --align A1
 
 # View anchors in Jalview (nucleotide sequences)
 anchorna view --mode nt anchors.gff

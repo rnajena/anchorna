@@ -1,4 +1,8 @@
 # (C) 2024, Tom Eulenfeld, MIT license
+"""
+IO routines, see `.write_anchors()` and `.read_anchors()`
+"""
+
 import json
 import logging
 import sys
@@ -20,6 +24,7 @@ def write_anchors(anchors, fname, mode=None):
     Offsets are stored as comments.
 
     :param str mode: if specified, transform indices and export to GFF file
+       without the offsets stored as comments.
        The result is a file which should not be read in again with anchorna.
     """
     from anchorna import __version__
@@ -76,6 +81,11 @@ def read_anchors(fname, check_header=True):
 
 
 def _parse_selection(anchors, selection):
+    """
+    Parse string specifying anchors and select these
+
+    See ``anchorna combine -h``
+    """
     anchors2 = anchors[:0]
     for part in selection.split(','):
         if ':' in part:
@@ -92,6 +102,8 @@ def _parse_selection(anchors, selection):
 def load_selected_anchors(fname):
     """
     Read anchors and select or remove some of them
+
+    See ``anchorna combine -h``
     """
     if '|' not in fname:
         return read_anchors(fname)
@@ -127,7 +139,7 @@ def _json_hook(d):
 
 def load_json(fname):
     """
-    Load anchors from JSON file
+    Load anchors from JSON file, experimental
     """
 
     if fname in ('-', None):
@@ -139,7 +151,7 @@ def load_json(fname):
 
 def write_json(obj, fname):
     """
-    Write anchors to JSON file
+    Write anchors to JSON file, experimental
     """
     if fname in ('-', None):
         print(json.dumps(obj, cls=_AnchorJSONEncoder))
