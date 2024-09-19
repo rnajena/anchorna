@@ -31,7 +31,7 @@ To install the package in editable mode, clone the repository and install with `
 ### Usage & Tutorial
 
 A command line tool is provided, see `anchorna -h` and the help of subcommands. An example configuration file can be created with `anchorna create`.
-See the example configuration file for a description of AnchoRNA's options. Consult the (API documentation)[https://anchorna.readthedocs.io] for details.
+See the example configuration file for a description of AnchoRNA's options. Consult the [API documentation](https://anchorna.readthedocs.io) for details.
 
 Start the tutorial with
 
