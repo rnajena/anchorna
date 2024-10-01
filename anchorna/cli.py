@@ -222,12 +222,15 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
             else:
                 offsets_cds = None
             if offsets_cds == offsets:
-                seqs = seqs[:, 'cds']
+                # seqs = seqs[:, 'cds']
+                # seqs.data = [seq.get('cds', gap='-') for seq in seqs]
+                seqs = seqs.get((slice(None), 'cds'), gap='-')
                 if mode == 'aa':
                     seqs = seqs.translate(complete=True, final_stop=False)
             else:
                 for seq in seqs:
-                    seq.data = seq.data[offsets[seq.id]:]
+                    seq.get(slice(offsets[seq.id], None), gap='-', inplace=True)
+                    #seq.data = seq.data[offsets[seq.id]:]
                 if mode == 'aa':
                     seqs = seqs.translate(complete=True)
         if align:
