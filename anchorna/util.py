@@ -37,7 +37,7 @@ def _apply_mode(i, o, mode, islen=False):
     """
     Transform index, allowed modes are ``'aa', 'cds', 'nt'``
     """
-    if mode == 'aa':
+    if mode in ('aa', None):
         return i
     elif mode == 'cds' or mode == 'nt' and islen:
         return 3 * i
@@ -274,11 +274,11 @@ class AnchorList(collections.UserList):
         self.data = [anchor for anchor in self if anchor not in remove_anchors]
         return AnchorList(remove_anchors, no_cds=self.no_cds).sort()
 
-    def convert2fts(self):
+    def convert2fts(self, **kw):
         """
         Convert anchors to `~sugar.core.fts.FeatureList` object
         """
-        return anchors2fts(self)
+        return anchors2fts(self, **kw)
 
     def write(self, fname, **kw):
         """
@@ -288,7 +288,7 @@ class AnchorList(collections.UserList):
         return write_anchors(self, fname, **kw)
 
 
-def anchors2fts(anchors):
+def anchors2fts(anchors, mode=None):
     """
     Convert anchors to `~sugar.core.fts.FeatureList` object
 
@@ -306,7 +306,9 @@ def anchors2fts(anchors):
                 assert j > 0
                 ftype = 'fluke'
                 name=f'A{i}_{f.seqid}'
-            ft = Feature(ftype, start=f.start, stop=f.stop,
+            start = _apply_mode(f.start, f.offset, mode)
+            stop = _apply_mode(f.stop, f.offset, mode)
+            ft = Feature(ftype, start=start, stop=stop,
                          meta=dict(name=name, seqid=f.seqid, score=f.score,
                                    _gff=Attr(source='anchorna', word=f.word,
                                              median_score=f.median_score)))

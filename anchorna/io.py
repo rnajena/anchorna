@@ -28,7 +28,7 @@ def write_anchors(anchors, fname, mode=None):
        The result is a file which should not be read in again with anchorna.
     """
     from anchorna import __version__
-    fts = anchors.convert2fts()
+    fts = anchors.convert2fts(mode=mode)
     offsets = {ft.seqid: ft.meta._gff.pop('offset') for ft in fts}
     offsets_header = ''.join(f'#offset {seqid} {offset}\n' for seqid, offset in offsets.items())
     if mode is None:
