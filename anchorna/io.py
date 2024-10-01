@@ -76,7 +76,7 @@ def read_anchors(fname, check_header=True):
         elif line.startswith('#'):
             continue
     for ft in fts:
-        ft.meta._gff.offset = offsets[ft.seqid]
+        ft.meta._gff.offset = offsets.get(ft.seqid)
     return fts2anchors(fts, no_cds=no_cds)
 
 
