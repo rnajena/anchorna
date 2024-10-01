@@ -283,9 +283,10 @@ def run(command, conf=None, pdb=False, **args):
             pdb.pm()
         sys.excepthook = info
     try:
-        globals()[f'_cmd_{command}'](**args)
+        func = globals()[f'_cmd_{command}']
     except KeyError:
         raise ValueError(f'Unknown command: {command}')
+    return func(**args)
 
 
 def run_cmdline(cmd_args=None):
