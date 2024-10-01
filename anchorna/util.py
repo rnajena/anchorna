@@ -276,7 +276,7 @@ class AnchorList(collections.UserList):
 
     def convert2fts(self, **kw):
         """
-        Convert anchors to `~sugar.core.fts.FeatureList` object
+        Convert anchors to `~sugar.core.fts.FeatureList` object, see `.anchors2fts()`
         """
         return anchors2fts(self, **kw)
 
@@ -293,6 +293,8 @@ def anchors2fts(anchors, mode=None):
     Convert anchors to `~sugar.core.fts.FeatureList` object
 
     Write some important attributes to ``Feature.meta._gff`` metadata.
+
+    :param mode: Optionally convert anchors to ``'nt'`` or ``'cds'`` indices
     """
     from sugar import Feature, FeatureList
     fts = []
