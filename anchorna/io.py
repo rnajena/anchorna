@@ -160,14 +160,40 @@ def write_json(obj, fname):
             json.dump(obj, f, cls=_AnchorJSONEncoder)
 
 
+def export_dialign(anchors, seqids, mode='aa', score_use_fluke=None):
+    """
+    Export anchors to Dialign anchor file
+    """
+    assert mode in ('nt', 'cds', 'aa')
+    sortkey_score = lambda f: f.score
+    sortkey_ids = lambda f: seqids.index(f.seqid)
+    content = []
+    for anchor in anchors:
+        f0 = anchor.sort(key=sortkey_score)[-1]
+        start0 = _apply_mode(f0.start, f0.offset, mode)
+        i = sortkey_ids(f0)
+        anchor.sort(key=sortkey_ids)
+        for f in anchor:
+            j = sortkey_ids(f)
+            if (f == f0 or score_use_fluke is not None and
+                    f.score < score_use_fluke):
+                continue
+            assert f.len == f0.len
+            start = _apply_mode(f.start, f.offset, mode)
+            content.append(
+                f'{i+1} {j+1} {start0+1} {start+1} {f.len} {f.score}\n'
+                )
+    return ''.join(content)
+
+
 def _make_rgb_transparent(rgb, bg_rgb, alpha):
     return [alpha * c1 + (1 - alpha) * c2
             for (c1, c2) in zip(to_rgb(rgb), to_rgb(bg_rgb))]
 
 
-def jalview_features(anchors, mode='aa', score_use_fluke=None):
+def export_jalview(anchors, mode='aa', score_use_fluke=None):
     """
-    Write anchors to Jalview feature file
+    Export anchors to Jalview feature file
     """
     assert mode in ('nt', 'cds', 'aa')
     cols = list(mcolors.TABLEAU_COLORS.values())

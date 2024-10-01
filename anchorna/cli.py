@@ -19,7 +19,7 @@ from warnings import warn
 
 from sugar import read
 from anchorna.core import combine, cutout, find_my_anchors
-from anchorna.io import jalview_features, read_anchors, load_selected_anchors
+from anchorna.io import export_dialign, export_jalview, read_anchors, load_selected_anchors
 from anchorna.util import _apply_mode
 
 
@@ -180,13 +180,20 @@ def _cmd_print(fname_anchor, verbose=False, mode='aa'):
 def _cmd_load(fname_anchor):
     _start_ipy(read_anchors(fname_anchor))
 
-def _cmd_export(fname_anchor, out, mode='aa', score_use_fluke=None, fmt='gff'):
+def _cmd_export(fname_anchor, out, mode='aa', score_use_fluke=None, fmt='gff',
+                fname=None):
     assert mode in ('nt', 'cds', 'aa')
     anchors = load_selected_anchors(fname_anchor)
     if anchors.no_cds:
         mode = 'aa'
-    if fmt == 'jalview':
-        outstr = jalview_features(anchors, mode=mode, score_use_fluke=score_use_fluke)
+    if fmt in ('jalview', 'dialign'):
+        if fmt == 'jalview':
+            outstr = export_jalview(anchors, mode=mode, score_use_fluke=score_use_fluke)
+        else:
+            if fname is None:
+                raise ValueError('--fname option missing for Dialign export')
+            seqs = read(fname)
+            outstr = export_dialign(anchors, seqs.ids, mode=mode, score_use_fluke=score_use_fluke)
         if out is None:
             print(outstr)
         else:
@@ -318,7 +325,7 @@ def run_cmdline(cmd_args=None):
     p_go = sub.add_parser('go', help=(msg:='find anchors and write them into anchor file'), description=msg)
     p_print = sub.add_parser('print', help=(msg:='print contents of anchor file'), description=msg)
     p_load = sub.add_parser('load', help=(msg:='load anchors into IPython session'), description=msg)
-    p_export = sub.add_parser('export', help=(msg:='export anchors to gff file (possibly using different mode than aa) or a JalView feature file'), description=msg)
+    p_export = sub.add_parser('export', help=(msg:='export anchors to gff file (possibly using different mode than aa), JalView feature file or Dialign anchor file'), description=msg)
     p_view = sub.add_parser('view', help=(msg:='view anchors in JalView (i.e. call export and start JalView)'), description=msg)
     msg = 'combine (and select or remove) anchors from one file or different files'
     msg2 = ('An expression consists of a file name fname_anchor or fname_anchor|selection to select anchors or fname_anchor||expression to remove anchors, or fname|selection|expression. '
@@ -344,7 +351,7 @@ def run_cmdline(cmd_args=None):
     p_cutout = sub.add_parser('cutout', help=msg, description=msg, epilog=msg2)
 
 
-    for p in (p_create, p_go, p_view, p_cutout):
+    for p in (p_create, p_go, p_export, p_view, p_cutout):
         p.add_argument('-c', '--conf', default='anchorna.conf', help='configuration file to use (default: anchorna.conf)')
     p_create.add_argument('--tutorial', action='store_true', help='copy GFF sequence file for tutorial')
     p_create.add_argument('--no-cds', action='store_true', help='add the no_cds line to configuration, effect: directly use aa or nucleotide '
@@ -368,15 +375,20 @@ def run_cmdline(cmd_args=None):
     g.add_argument('--no-cds', action='store_true', default=argparse.SUPPRESS)
     for p in (p_export, p_view, p_cutout):
         g = p.add_argument_group('optional arguments', description='Use these flags to overwrite values in the config file.')
-        if p != p_export:
-            g.add_argument('--fname', default=argparse.SUPPRESS)
+        g.add_argument('--fname', default=argparse.SUPPRESS)
         g.add_argument('--score-use-fluke', default=argparse.SUPPRESS, type=int)
         # g.add_argument('--no-cds', action='store_true', default=argparse.SUPPRESS)
 
     p_export.add_argument('fname_anchor', help='anchor file name')
     p_export.add_argument('-o', '--out', help='output file name (by default prints to stdout)')
-    p_export.add_argument('--fmt', help='format for export, default gff', default='gff',
-                          choices=('gff', 'jalview'))
+    msg = (
+        'format for export, default gff, '
+        'for Dialign export, '
+        'please specify sequence filename you want to align with Dialign with --fname option, '
+        'the sequence order is needed for the Dialign export, default fname from config file'
+    )
+    p_export.add_argument('--fmt', help=msg, default='gff',
+                          choices=('gff', 'jalview', 'dialign'))
     p_view.add_argument('fname_anchor', help='anchor file name')
     p_view.add_argument('--align', help='align sequences at given anchor')
     p_combine.add_argument('fname_anchor', nargs='+', help='anchor file name')

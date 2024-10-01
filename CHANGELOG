@@ -3,6 +3,7 @@ dev:
   * add multiprocessing option (--njobs)
   * add aggressive mode when removing contradicting anchors (now the default)
   * add export to GFF files
+  * add export to Dialign anchor files
   * change names of some options
   * add no_cds configuration parameter and --no-cds command line flag,
     used to find anchors in non-coding and amino acid sequences

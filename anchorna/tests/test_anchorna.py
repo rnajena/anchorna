@@ -118,6 +118,10 @@ def test_anchorna_workflow_subset():
         assert '' in check('anchorna export -m cds anchors.gff -o test_anchor_export.gff')
         with pytest.raises(IOError):
             read_anchors('test_anchor_export.gff')
+        read_anchors('test_anchor_export.gff', check_header=False)
+        assert '1' in check('anchorna export --fmt dialign anchors.gff')
+        assert '1' in check('anchorna export --fmt dialign -m nt anchors.gff')
+        assert '1' in check('anchorna export --fmt dialign -m cds anchors.gff')
         with patch('subprocess.run'):  # we do not want to actually start jalview here
             assert '' == check('anchorna view anchors.gff')
             assert '' == check('anchorna view anchors.gff --align a1')
