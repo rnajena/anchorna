@@ -180,8 +180,9 @@ def export_dialign(anchors, seqids, mode='aa', score_use_fluke=None):
                 continue
             assert f.len == f0.len
             start = _apply_mode(f.start, f.offset, mode)
+            len_ = _apply_mode(f.len, f.offset, mode, islen=True)
             content.append(
-                f'{i+1} {j+1} {start0+1} {start+1} {f.len} {f.score}\n'
+                f'{i+1} {j+1} {start0+1} {start+1} {len_} {f.score}\n'
                 )
     return ''.join(content)
 

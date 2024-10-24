@@ -135,7 +135,7 @@ def test_anchorna_workflow_subset():
         seqs2 = cutout(seqs, anchors, 'start+10', 'a5^-5')
         seqs3 = cutout(seqs, anchors, 'a5^-5', '*>')
         seqs4 = cutout(seqs, anchors, '*>', 'end')
-        assert str(seqs[0, 10:]) == str(seqs2[0] + seqs3[0] + seqs4[0])
+        assert str(seqs[0, 10:]) == seqs2[0].data + seqs3[0].data + seqs4[0].data
 
         fname = tmpdir / 'pesti_test_cutout.sjson'
         assert '' == check(f'anchorna cutout anchors.gff a0> a2< -o {fname}')
@@ -184,7 +184,7 @@ def test_anchorna_workflow_subset_poor():
         seqs2 = cutout(seqs, anchors, 'start+10', 'a5^-5')
         seqs3 = cutout(seqs, anchors, 'a5^-5', '*>')
         seqs4 = cutout(seqs, anchors, '*>', 'end')
-        assert str(seqs[0, 10:]) == str(seqs2[0] + seqs3[0] + seqs4[0])
+        assert str(seqs[0, 10:]) == seqs2[0].data + seqs3[0].data + seqs4[0].data
 
         _fix_open_log_file_on_windows()
 
@@ -225,7 +225,7 @@ def test_anchorna_workflow_subset_no_cds():
         seqs2 = cutout(seqs, anchors, 'start+10', 'a5^-5')
         seqs3 = cutout(seqs, anchors, 'a5^-5', '*>')
         seqs4 = cutout(seqs, anchors, '*>', 'end')
-        assert str(seqs[0, 10:]) == str(seqs2[0] + seqs3[0] + seqs4[0])
+        assert str(seqs[0, 10:]) == seqs2[0].data + seqs3[0].data + seqs4[0].data
 
         _fix_open_log_file_on_windows()
 
