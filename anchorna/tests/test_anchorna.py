@@ -15,7 +15,7 @@ from sugar import read
 
 from anchorna import cutout, read_anchors
 from anchorna.cli import run_cmdline
-from anchorna.io import load_json, load_selected_anchors, write_json
+from anchorna.io import load_json, write_json
 
 
 _IDS = (  # Representative sequences of pesti virus
@@ -147,7 +147,7 @@ def test_anchorna_workflow_subset():
         assert '' == check(f'anchorna cutout anchors.gff a6> a10< -o {fname}')
         assert '' == check(f'anchorna go --fname {fname} --no-pbar anchors_cutout2.gff --search-range=1000')
         assert '' == check('anchorna combine anchors.gff||a7:a10 anchors_cutout2.gff -o anchors_combined2.gff')
-        assert read_anchors('anchors_combined2.gff') == load_selected_anchors('anchors.gff')
+        assert read_anchors('anchors_combined2.gff') == read_anchors('anchors.gff')
 
         # check --no-remove option and --continue-with option
         assert '' == check('anchorna go --no-remove --no-pbar anchors2.gff')

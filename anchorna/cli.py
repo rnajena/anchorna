@@ -19,7 +19,7 @@ from warnings import warn
 
 from sugar import read
 from anchorna.core import combine, cutout, find_my_anchors
-from anchorna.io import export_dialign, export_jalview, read_anchors, load_selected_anchors
+from anchorna.io import export_dialign, export_jalview, read_anchors
 from anchorna.util import _apply_mode
 
 
@@ -108,7 +108,7 @@ def _tutorial_seqs(subset=False):
     seqs = read(files('anchorna.tests.data').joinpath('pesti56.gff.zip'))
     if subset:
         seqs = seqs[18:28]
-        start, stop = zip(*[seq.fts.get('cds').loc_range for seq in seqs])
+        start, stop = zip(*[seq.fts.get('cds').locs.range for seq in seqs])
         start = max(start)
         stop = min(stop)
         stop = start + (stop-start) // 3 * 3 + 6
@@ -169,7 +169,7 @@ def _cmd_go(fname, fname_anchor, pbar=True, continue_with=None,
     anchors.write(fname_anchor)
 
 def _cmd_print(fname_anchor, verbose=False, mode='aa'):
-    anchors = load_selected_anchors(fname_anchor)
+    anchors = read_anchors(fname_anchor)
     if anchors.no_cds:
         mode = 'aa'
     try:
@@ -183,7 +183,7 @@ def _cmd_load(fname_anchor):
 def _cmd_export(fname_anchor, out, mode='aa', score_use_fluke=None, fmt='gff',
                 fname=None):
     assert mode in ('nt', 'cds', 'aa')
-    anchors = load_selected_anchors(fname_anchor)
+    anchors = read_anchors(fname_anchor)
     if anchors.no_cds:
         mode = 'aa'
     if fmt in ('jalview', 'dialign'):
@@ -240,17 +240,17 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
         subprocess.run(f'jalview {fname_seq} --features {fname_export}'.split())
 
 def _cmd_combine(fname_anchor, out):
-    lot_of_anchors = [load_selected_anchors(fn) for fn in fname_anchor]
+    lot_of_anchors = [read_anchors(fn) for fn in fname_anchor]
     anchors = combine(lot_of_anchors)
     anchors.write(out)
 
-def _cmd_cutout(fname, fname_anchor, pos1, pos2, out, fmt, mode='nt', score_use_fluke=None):
+def _cmd_cutout(fname, fname_anchor, pos1, pos2, out, fmt, mode='nt', score_use_fluke=None, gap=None):
     assert mode in ('nt', 'cds', 'aa')
     seqs = read(fname)
-    anchors = load_selected_anchors(fname_anchor)
+    anchors = read_anchors(fname_anchor)
     if anchors.no_cds:
         mode = 'aa'
-    seqs2 = cutout(seqs, anchors, pos1, pos2, mode=mode, score_use_fluke=score_use_fluke)
+    seqs2 = cutout(seqs, anchors, pos1, pos2, mode=mode, score_use_fluke=score_use_fluke, gap=gap)
     if out is None:
         print(seqs2.tofmtstr(fmt or 'fasta'))
     else:
@@ -342,7 +342,7 @@ def run_cmdline(cmd_args=None):
             'Each position has 3 parts ABC where B and C are optional. '
             'Part A: Is a number or number prepended with letter a to specify the anchor number, '
             'use special words "start" and "end" for start or end of sequence, '
-            'use special words "ATG" and "*" for start or stop codon of sequence (only allowed in mode "seq") '
+            'use special words "ATG" and "*" for start or stop codon of sequence (only allowed in mode "nt") '
             'Part B: One of the characters <, >, ^, for start, end or middle of word (anchor) specified in A, '
             'default is < for the first anchor and > for the second anchor, must be omitted for A=start or A=end. '
             'Part C: Additional character offset in the form +X or -X. '
@@ -400,6 +400,7 @@ def run_cmdline(cmd_args=None):
 
     p_cutout.add_argument('-o', '--out', help='output file name (by default prints fasta to stdout)')
     p_cutout.add_argument('--fmt', help='output format (default: autodetect from file extension)')
+    p_cutout.add_argument('--gap', help='specify gap character(s), allow gaps in sequences (default: no special handling for gaps)')
 
     p_print.add_argument('fname_anchor', help='anchor file name')
     p_print.add_argument('-v', '--verbose', help=msg, action='store_true')

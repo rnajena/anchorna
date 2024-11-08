@@ -51,7 +51,7 @@ def write_anchors(anchors, fname, mode=None):
         fts.write(fname, 'gff', header=header)
 
 
-def read_anchors(fname, check_header=True):
+def _read_anchors(fname, check_header=True):
     """
     Read anchors from GFF file
 
@@ -99,16 +99,19 @@ def _parse_selection(anchors, selection):
     return anchors2
 
 
-def load_selected_anchors(fname):
+def read_anchors(fname, check_header=True):
     """
-    Read anchors and select or remove some of them
+    Read anchors from GFF file
 
-    See ``anchorna combine -h``
+    Offsets are restored from comments.
+    Additionally, anchors can be selected and/or removed with a special syntax,
+    see ``anchorna combine -h``
     """
+    fname = str(fname)
     if '|' not in fname:
-        return read_anchors(fname)
+        return _read_anchors(fname, check_header=check_header)
     fname, selection = fname.split('|', 1)
-    anchors = read_anchors(fname.strip())
+    anchors = _read_anchors(fname.strip(), check_header=check_header)
     selection = selection.lower()
     if '|' not in selection:
         return _parse_selection(anchors, selection)

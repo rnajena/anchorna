@@ -341,7 +341,7 @@ def fts2anchors(fts, no_cds=False):
         if ft.type in ('anchor', 'fluke'):
             if not ft.meta.name.startswith(aname):
                 raise ValueError(f'Fluke with name {ft.meta.name} not part of anchor {aname}')
-            start, stop = ft.loc_range
+            start, stop = ft.locs.range
             fluke = Fluke(seqid=ft.seqid, score=ft.meta.score, start=start, stop=stop,
                           word=ft.meta._gff.word, poor=hasattr(ft.meta._gff, 'poor'),
                           median_score = float(ft.meta._gff.get('median_score', 1)))

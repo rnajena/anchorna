@@ -300,7 +300,7 @@ def _transform_cutout_index(A, B, C, id_, seq, mode):
     return i
 
 
-def cutout(seqs, anchors, pos1, pos2, mode='nt', score_use_fluke=None):
+def cutout(seqs, anchors, pos1, pos2, mode='nt', score_use_fluke=None, gap=None):
     """
     Cutout subsequences from pos1 to pos2 (i.e. between two anchors)
 
@@ -320,7 +320,7 @@ def cutout(seqs, anchors, pos1, pos2, mode='nt', score_use_fluke=None):
             continue
         i = _transform_cutout_index(la, lb, lc, id_, seqs[id_], mode)
         j = _transform_cutout_index(ra, rb, rc, id_, seqs[id_], mode)
-        seq2 = seqs[id_][i:j]
+        seq2 = seqs[id_].sl(gap=gap)[i:j]
         if mode == 'nt':
             seq2.meta.offset = i
             seq2.meta.pop('fts', None)
