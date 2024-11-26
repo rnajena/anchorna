@@ -234,7 +234,7 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
             anchor = anchors[int(align.lower().removeprefix('a'))]
             start = max(_apply_mode(fluke.start, fluke.offset, mode=mode) for fluke in anchor)
             for seq in seqs:
-                fluke = anchor.d[seq.id]
+                fluke = anchor.sid[seq.id]
                 seq.data = '-' * (start - _apply_mode(fluke.start, fluke.offset, mode=mode)) + seq.data
         seqs.write(fname_seq)
         subprocess.run(f'jalview {fname_seq} --features {fname_export}'.split())

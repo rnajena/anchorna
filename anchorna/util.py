@@ -68,15 +68,15 @@ class Anchor(collections.UserList):
     def __hash__(self):
         return hash((self.guide.start, self.guide.len, self.guide.offset))
 
-    def todict(self):
+    def todict_seqid(self):
         return {f.seqid: f for f in self}
 
     @property
-    def d(self):
-        return self.todict()
+    def sid(self):
+        return self.todict_seqid()
 
     @property
-    def ids(self):
+    def seqids(self):
         return [f.seqid for f in self]
 
     def tostr(self, i='', verbose=False, mode='aa'):
@@ -99,7 +99,7 @@ class Anchor(collections.UserList):
 
     @property
     def guide(self):
-        return self.d[self.gseqid]
+        return self.sid[self.gseqid]
 
     @property
     def minscore(self):
@@ -127,7 +127,7 @@ class Anchor(collections.UserList):
         a1 = self.good_flukes
         a2 = a2.good_flukes
         return (max(a1.guide.start, a2.guide.start) <= min(a1.guide.stop, a2.guide.stop) and
-                set(a1.ids) == set(a2.ids) and
+                set(a1.seqids) == set(a2.seqids) and
                 all((f1.start - f2.start == a1.guide.start - a2.guide.start and f1.poor == f2.poor) for f1, f2 in zip(a1.sort(), a2.sort())))
 
     def join_with(self, a2):

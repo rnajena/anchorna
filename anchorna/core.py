@@ -97,7 +97,7 @@ def anchor_at_pos(i, aas, w, gseqid, search_range,
         return
     words = {gword}
     todo = set(aas[1:].ids)
-    aas = aas.d
+    aas = aas.todict()
     toadd = []
     res = [(gscore, i, gseqid)]
     nfails = 0
@@ -270,7 +270,7 @@ def _split_cutout_pos(pos, mode, seqs, anchors, defaultB='^'):
         raise ValueError(f'{pos} only allowed in mode seq')
     A = pos
     if is_real_anchor := (A not in ('start', 'end', 'atg', '*')):
-        A = anchors[int(A.removeprefix('a'))].d
+        A = anchors[int(A.removeprefix('a'))].todict_seqid()
         if len(ids := set(A.keys()) - set(seqs.keys())) > 0:
             warn(f'Some anchor ids {ids} not present in sequences')
     return A, B, C, is_real_anchor
