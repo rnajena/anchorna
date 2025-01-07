@@ -236,7 +236,11 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
             for seq in seqs:
                 fluke = anchor.sid[seq.id]
                 seq.data = '-' * (start - _apply_mode(fluke.start, fluke.offset, mode=mode)) + seq.data
-        seqs.write(fname_seq)
+        if mode == 'nt' and align is None:
+            # if input file is a stockholm file, just keep it if no changes for seqs
+            fname_seq = fname
+        else:
+            seqs.write(fname_seq)
         subprocess.run(f'jalview {fname_seq} --features {fname_export}'.split())
 
 def _cmd_combine(fname_anchor, out):

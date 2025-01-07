@@ -4,6 +4,7 @@
 """
 
 import collections
+from copy import deepcopy
 import logging
 from statistics import median
 from warnings import warn
@@ -225,6 +226,9 @@ class AnchorList(collections.UserList):
 
     def tostr(self, verbose=False, mode='aa'):
         return '\n'.join(a.tostr(i=i, verbose=verbose, mode=mode) for i, a in enumerate(self))
+
+    def copy(self):
+        return deepcopy(self)
 
     def sort(self, key=lambda a: a.guide.start, **kw):
         self.data = sorted(self, key=key, **kw)
