@@ -105,7 +105,7 @@ def _start_ipy(obj):
 
 
 def _tutorial_seqs(subset=False):
-    seqs = read(files('anchorna.tests.data').joinpath('pesti56.gff.zip'))
+    seqs = read(files('anchorna.tests.data').joinpath('pesti55.gff'))
     if subset:
         seqs = seqs[18:28]
         start, stop = zip(*[seq.fts.get('cds').locs.range for seq in seqs])
