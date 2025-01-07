@@ -258,7 +258,7 @@ def test_tutorial():
     i1 = readme.find('anchorna go')
     i2 = readme.find('```', i1) + i1
     tutorial = 'anchorna create --tutorial\n' + readme[i1:i2]
-    tutorial = tutorial.replace('"A??>" "A??<"', '"A33>" "A34<"')
+    tutorial = tutorial.replace('"A??>" "A??<"', '"A40>" "A41<"')
     sys.modules['IPython'] = MagicMock()
     with _changetmpdir():
         with patch('subprocess.run'):

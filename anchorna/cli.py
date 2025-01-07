@@ -178,7 +178,10 @@ def _cmd_load(fname_anchor):
 def _cmd_export(fname_anchor, out, mode='aa', score_use_fluke=None, fmt='gff',
                 fname=None):
     assert mode in ('nt', 'cds', 'aa')
-    anchors = read_anchors(fname_anchor)
+    if isinstance(fname_anchor, str):
+        anchors = read_anchors(fname_anchor)
+    else:
+        anchors = fname_anchor
     if anchors.no_cds:
         mode = 'aa'
     if fmt in ('jalview', 'dialign'):
@@ -205,9 +208,9 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
     with tempfile.TemporaryDirectory(prefix='anchorna') as tmpdir:
         fname_export = Path(tmpdir) / 'jalview_features.txt'
         fname_seq = Path(tmpdir) / 'aa_or_seq_or_cds.fasta'
-        _cmd_export(fname_anchor, fname_export, mode=mode, score_use_fluke=score_use_fluke, fmt='jalview')
         seqs = read(fname)
         anchors = read_anchors(fname_anchor)
+        _cmd_export(anchors, fname_export, mode=mode, score_use_fluke=score_use_fluke, fmt='jalview')
         if anchors.no_cds:
             mode = 'aa'
         if mode != 'nt' and not anchors.no_cds:
@@ -231,7 +234,7 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
             for seq in seqs:
                 fluke = anchor.sid[seq.id]
                 seq.data = '-' * (start - _apply_mode(fluke.start, fluke.offset, mode=mode)) + seq.data
-        if mode == 'nt' and align is None:
+        if mode == 'nt' and align is None and seqs[0].meta._fmt == 'stockholm':
             # if input file is a stockholm file, just keep it if no changes for seqs
             fname_seq = fname
         else:

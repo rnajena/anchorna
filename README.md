@@ -62,10 +62,10 @@ jalview pestiaa.fasta --features jalview_fts.txt
 # View anchors in Jalview (nucleotide sequences)
 anchorna view --mode nt anchors.gff
 
-# We are not satisfied with the first anchor, remove it and check the resulting anchors in
+# We are not satisfied with the anchor 8, remove it and check the resulting anchors in
 # Jalview, afterwards save to new anchor file
-anchorna combine "anchors.gff||a0" | anchorna view -
-anchorna combine "anchors.gff||a0" -o anchors2.gff
+anchorna combine "anchors.gff||a8" | anchorna view -
+anchorna combine "anchors.gff||a8" -o anchors2.gff
 # Note that anchors are renumbered, the anchor number is not a property of each anchor,
 # it is just used as a simple reference later on
 anchorna print anchors2.gff
@@ -80,7 +80,7 @@ anchorna cutout anchors2.gff "ATG<" "A2>+10" -o pestiA3.fasta
 anchorna load anchors2.gff
 
 # Run anchorna on subsequences and combine results into a single anchor file
-# We are not satisfied with the long region (>1000 aa) without any anchors,
+# We are not satisfied with the long region (~ 2000 nt) without any anchors,
 # find two anchors immediately before and after this "empty" region,
 # replace the "??" signs with the anchor numbers
 anchorna view anchors2.gff
