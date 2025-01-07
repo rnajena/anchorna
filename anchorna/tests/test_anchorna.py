@@ -38,7 +38,7 @@ def create_example_seqs_file():
     for seq in seqs:
         seq.fts = seq.fts.select('cds')
     fname = files('anchorna.tests.data').joinpath('pesti55.gff')
-    seqs.write(fname)
+    seqs.write(fname, archive='zip')
 
 
 @contextlib.contextmanager
