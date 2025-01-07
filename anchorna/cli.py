@@ -108,15 +108,10 @@ def _tutorial_seqs(subset=False):
     seqs = read(files('anchorna.tests.data').joinpath('pesti55.gff.zip'))
     if subset:
         seqs = seqs[18:28]
-        start, stop = zip(*[seq.fts.get('cds').locs.range for seq in seqs])
-        start = max(start)
-        stop = min(stop)
-        stop = start + (stop-start) // 3 * 3 + 6
         for i in range(len(seqs)):
-            seqs[i] = seqs[i][:start + 999] + seqs[i][stop:]
-            seqs[i].fts[0].loc.stop -= stop-start - 999
-            istop = seqs[i].fts[0].loc.stop
-            seqs[i][istop-3:istop] = 'TGA'
+            cds = seqs[i].fts.get('cds')
+            seqs[i] = seqs[i][:cds.loc.start + 996] + 'TGA'
+            cds.loc.stop = cds.loc.start + 999
     return seqs
 
 
@@ -136,7 +131,7 @@ def _cmd_create(conf, tutorial=False, tutorial_subset=False, no_cds=False):
         path = os.path.dirname(conf)
         seqs.write(os.path.join(path, 'pesti_example.gff'))
 
-def _cmd_go(fname, fname_anchor, pbar=True, continue_with=None,
+def _cmd_go(fname, fname_anchor, continue_with=None,
             removed_anchors_path=None,
             logconf=None, logfile=None, no_logging=False,
             **kw):

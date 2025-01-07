@@ -170,7 +170,7 @@ def test_anchorna_workflow_subset_poor():
         fname_seqs = tmpdir / 'pesti_example.gff'
         assert '' == check('anchorna create --tutorial-subset')
         assert '' == check('anchorna go --thr-quota-add-anchor 0.5 --score-add-word 18 --no-pbar anchors.gff')
-        assert 'A11' in check('anchorna print anchors.gff')
+        assert 'A10' in check('anchorna print anchors.gff')
         assert '(poor)' in check('anchorna print anchors.gff -v')
         out1 = check('anchorna combine anchors.gff|a5:a10|a8')
         out2 = check('anchorna combine anchors.gff|a5,a6,a7,a9')
