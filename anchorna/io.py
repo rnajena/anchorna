@@ -223,3 +223,26 @@ def export_jalview(anchors, mode='aa', score_use_fluke=None):
             content.append(f'{f.word[:5]} w{w} poor:{poor}\t{f.seqid}\t-1\t{i+1}\t{j}\t{al}\n')
     header.append('\nSTARTFILTERS\nENDFILTERS\n\n')
     return ''.join(header) + ''.join(content)
+
+
+def export_locarna(anchors, mode='nt', score_use_fluke=None):
+    """
+    Export anchors to 4 column bed files usable with ``mlocarna ----anchor-constraints``
+    """
+    assert mode in ('nt', 'cds', 'aa')
+    anchors = sorted(anchors, key=lambda a: a.guide.start)
+    content = []
+    for k, a in enumerate(anchors):
+        for j, f in enumerate(a):
+            if score_use_fluke is not None and f.score < score_use_fluke:
+                continue
+            # A   10      16      first_box
+            # B   8       14      first_box
+            # A   39      42      ACA-box
+            # B   25      28      ACA-box
+            i = _apply_mode(f.start, f.offset, mode)
+            j = _apply_mode(f.stop, f.offset, mode)
+            content.append(
+                f'{f.seqid}\t{i}\t{j-1}\tA{k}\n'
+                )
+    return ''.join(content)

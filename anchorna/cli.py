@@ -19,7 +19,7 @@ from warnings import warn
 
 from sugar import read
 from anchorna.core import combine, cutout, find_my_anchors
-from anchorna.io import export_dialign, export_jalview, read_anchors
+from anchorna.io import export_dialign, export_locarna, export_jalview, read_anchors
 from anchorna.util import _apply_mode
 
 
@@ -175,8 +175,10 @@ def _cmd_print(fname_anchor, verbose=False, mode='aa'):
 def _cmd_load(fname_anchor):
     _start_ipy(read_anchors(fname_anchor))
 
-def _cmd_export(fname_anchor, out, mode='aa', score_use_fluke=None, fmt='gff',
+def _cmd_export(fname_anchor, out, mode=None, score_use_fluke=None, fmt='gff',
                 fname=None):
+    if mode is None:
+        mode = 'nt' if fmt == 'locarna' else 'aa'
     assert mode in ('nt', 'cds', 'aa')
     if isinstance(fname_anchor, str):
         anchors = read_anchors(fname_anchor)
@@ -184,9 +186,11 @@ def _cmd_export(fname_anchor, out, mode='aa', score_use_fluke=None, fmt='gff',
         anchors = fname_anchor
     if anchors.no_cds:
         mode = 'aa'
-    if fmt in ('jalview', 'dialign'):
+    if fmt in ('dialign', 'jalview', 'locarna'):
         if fmt == 'jalview':
             outstr = export_jalview(anchors, mode=mode, score_use_fluke=score_use_fluke)
+        elif fmt == 'locarna':
+            outstr = export_locarna(anchors, mode=mode, score_use_fluke=score_use_fluke)
         else:
             if fname is None:
                 raise ValueError('--fname option missing for Dialign export')
@@ -234,6 +238,7 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
             for seq in seqs:
                 fluke = anchor.sid[seq.id]
                 seq.data = '-' * (start - _apply_mode(fluke.start, fluke.offset, mode=mode)) + seq.data
+            print(seqs[:, -20:])
         if mode == 'nt' and align is None and seqs[0].meta._fmt == 'stockholm':
             # if input file is a stockholm file, just keep it if no changes for seqs
             fname_seq = fname
@@ -390,7 +395,7 @@ def run_cmdline(cmd_args=None):
         'the sequence order is needed for the Dialign export, default fname from config file'
     )
     p_export.add_argument('--fmt', help=msg, default='gff',
-                          choices=('gff', 'jalview', 'dialign'))
+                          choices=('gff', 'jalview', 'dialign', 'locarna'))
     p_view.add_argument('fname_anchor', help='anchor file name')
     p_view.add_argument('--align', help='align sequences at given anchor')
     p_combine.add_argument('fname_anchor', nargs='+', help='anchor file name')
@@ -411,9 +416,10 @@ def run_cmdline(cmd_args=None):
     for p in (p_print, p_export, p_view, p_cutout):
         choices = ['nt', 'cds', 'aa']
         default = 'nt' if p == p_cutout else 'aa'
+        default_msg = default if p != p_export else 'nt for locarna else aa'
         msg = ('choose mode, nt: relative to original sequence, '
                'cds: accounting for offset (usually coding sequence), aa: translated cds '
-               f'(default: {default}), for anchors calculated with no_cds option, mode is ignored')
+               f'(default: {default_msg}), for anchors calculated with no_cds option, mode is ignored')
         p.add_argument('-m', '--mode', default=argparse.SUPPRESS, choices=choices, help=msg)
 
     # Get command line arguments and start run function
