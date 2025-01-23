@@ -48,7 +48,7 @@ def write_anchors(anchors, fname, mode=None):
         except BrokenPipeError:
             pass
     else:
-        fts.write(fname, 'gff', header=header)
+        fts.write(fname, 'gff', header_sugar=False, header=header)
 
 
 def _read_anchors(fname, check_header=True):

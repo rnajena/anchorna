@@ -15,7 +15,7 @@ keywords = [
     "bioinformatics", "RNA", "DNA", "sequence", "anchors"
 ]
 dependencies = [
-  "rnajena-sugar",
+  "rnajena-sugar >= 0.5",
   "tqdm",
 ]
 
