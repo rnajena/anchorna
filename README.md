@@ -14,17 +14,19 @@ AnchoRNA supports curation and iterative refinement of anchors. It can also be u
 ### Installation
 
 Use pip to install anchorna. It is best installed in a dedicated (conda) environment.
+
+To install the latest development version (recommended), use:
+
+```
+pip install https://github.com/rnajena/anchorna/archive/refs/heads/master.zip
+```
+
 To install the latest release use the following command.
 
 ```
 pip install https://github.com/rnajena/anchorna/archive/refs/tags/1.0.1.zip
 ```
 
-To install the latest development version, use:
-
-```
-pip install https://github.com/rnajena/anchorna/archive/refs/heads/master.zip
-```
 
 To install the package in editable mode, clone the repository and install with `pip -e repo_path`.
 
