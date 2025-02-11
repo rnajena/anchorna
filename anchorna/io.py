@@ -44,7 +44,7 @@ def write_anchors(anchors, fname, mode=None):
         header = f'# Anchors exported by AnchoRNA v{__version__} with mode {mode}\n'
     if fname is None:
         try:
-            print(fts.tofmtstr('gff', header=header))
+            print(fts.tofmtstr('gff', header_sugar=False, header=header))
         except BrokenPipeError:
             pass
     else:
