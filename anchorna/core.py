@@ -329,20 +329,26 @@ def cutout(seqs, anchors, pos1, pos2, mode='nt', score_use_fluke=None, gap=None,
     return seqs2
 
 
-def combine(lot_of_anchors):
+def combine(lot_of_anchors, convert_nt=False):
     """
     Combine lists of anchors into a single AnchorList
 
     Deal with possibly different offset values.
     Is called by ``anchorna combine``.
     """
-    anchors = set()
-    offsets = {f.seqid: f.offset for anchor in lot_of_anchors[0] for f in anchor}
     no_cds_set = set(anchors.no_cds for anchors in lot_of_anchors)
     if len(no_cds_set) > 1:
         raise ValueError('Some anchors calculated with no_cds option, some without')
     no_cds = no_cds_set.pop()
+    if convert_nt:
+        if no_cds:
+            raise ValueError('--convert-nt option can only be used for CDS')
+        for anchors in lot_of_anchors:
+            anchors._convert_nt()
+        no_cds = True
+    offsets = {f.seqid: f.offset for anchor in lot_of_anchors[0] for f in anchor}
     div = 1 if no_cds else 3
+    anchors = set()
     for nans in lot_of_anchors:
         if len(set(nans) & anchors) > 0:
             ids = ', '.join(a.id for a in nans & anchors)
@@ -351,6 +357,8 @@ def combine(lot_of_anchors):
             for f in anchor:
                 doff = f.offset - offsets[f.seqid]
                 f.offset = offsets[f.seqid]
+                if doff % div != 0:
+                    raise ValueError('Cannot combine anchors with offset difference module not equal 3, use --convert-nt option')
                 f.start += doff // div
                 f.stop += doff // div
         anchors |= set(nans)

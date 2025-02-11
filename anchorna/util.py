@@ -196,6 +196,13 @@ class Anchor(collections.UserList):
         attr = 'stop' if aggressive else 'start'
         return not all(getattr(f1, attr) <= f2.start for f1, f2 in zip(a1.sort(), a2.sort()))
 
+    def _convert_nt(self):
+        for fluke in self:
+            start, stop, offset = fluke.start, fluke.stop, fluke.offset
+            start = _apply_mode(start, offset, 'nt')
+            stop = _apply_mode(stop, offset, 'nt')
+            fluke.start, fluke.stop, fluke.offset = start, stop, 0
+
 
 class AnchorList(collections.UserList):
     """
@@ -223,6 +230,8 @@ class AnchorList(collections.UserList):
     def no_cds(self, value):
         if value:
             self._no_cds = True
+        else:
+            raise ValueError('Not allowed to unset no_cds')
 
     def tostr(self, verbose=False, mode='aa'):
         return '\n'.join(a.tostr(i=i, verbose=verbose, mode=mode) for i, a in enumerate(self))
@@ -283,6 +292,11 @@ class AnchorList(collections.UserList):
         Convert anchors to `~sugar.core.fts.FeatureList` object, see `.anchors2fts()`
         """
         return anchors2fts(self, **kw)
+
+    def _convert_nt(self):
+        for anchor in self:
+            anchor._convert_nt()
+        self.no_cds = True
 
     def write(self, fname, **kw):
         """

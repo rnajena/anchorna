@@ -245,9 +245,9 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
             seqs.write(fname_seq)
         subprocess.run(f'jalview {fname_seq} --features {fname_export}'.split())
 
-def _cmd_combine(fname_anchor, out):
+def _cmd_combine(fname_anchor, out, convert_nt=False):
     lot_of_anchors = [read_anchors(fn) for fn in fname_anchor]
-    anchors = combine(lot_of_anchors)
+    anchors = combine(lot_of_anchors, convert_nt=convert_nt)
     anchors.write(out)
 
 def _cmd_cutout(fname, fname_anchor, pos1, pos2, out, fmt, mode='nt', score_use_fluke=None, gap=None):
@@ -399,6 +399,7 @@ def run_cmdline(cmd_args=None):
     p_view.add_argument('--align', help='align sequences at given anchor')
     p_combine.add_argument('fname_anchor', nargs='+', help='anchor file name')
     p_combine.add_argument('-o', '--out', help='output file name (by default prints to stdout)')
+    p_combine.add_argument('--convert-nt', help='convert aa anchors to nt', action='store_true')
 
     p_cutout.add_argument('fname_anchor', help='anchor file name')
     p_cutout.add_argument('pos1', help='left position')
