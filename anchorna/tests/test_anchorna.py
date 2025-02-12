@@ -116,6 +116,7 @@ def test_anchorna_workflow_subset():
         assert 'anchorna' in check('anchorna export anchors.gff')
         assert 'anchorna' in check('anchorna export -m nt anchors.gff')
         assert 'anchorna' in check('anchorna export -m aa anchors.gff')
+        assert 'anchorna' in check('anchorna combine anchors.gff --convert-nt')
         assert '' in check('anchorna export -m cds anchors.gff -o test_anchor_export.gff')
         with pytest.raises(IOError):
             read_anchors('test_anchor_export.gff')

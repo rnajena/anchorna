@@ -235,7 +235,8 @@ def find_my_anchors(seqs, remove=True, aggressive_remove=True,
         log.info(f'Found {len(anchors)} anchors')
         anchors = anchors.merge_overlapping_anchors()
         log.info(f'Merged into {len(anchors)} anchors')
-        anchors.no_cds = no_cds
+        if no_cds:
+            anchors.no_cds = True
     else:
         anchors = continue_with
     if remove:
