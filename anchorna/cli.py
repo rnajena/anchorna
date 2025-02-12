@@ -19,7 +19,7 @@ from warnings import warn
 
 from sugar import read
 from anchorna.core import combine, cutout, find_my_anchors
-from anchorna.io import export_dialign, export_locarna, export_jalview, read_anchors
+from anchorna.io import export_dialign, export_locarna, export_jalview, export_stockholm, read_anchors
 from anchorna.util import _apply_mode
 
 
@@ -178,7 +178,7 @@ def _cmd_load(fname_anchor):
 def _cmd_export(fname_anchor, out, mode=None, score_use_fluke=None, fmt='gff',
                 fname=None):
     if mode is None:
-        mode = 'nt' if fmt == 'locarna' else 'aa'
+        mode = 'nt' if fmt in ('locarna', 'stockholm') else 'aa'
     assert mode in ('nt', 'cds', 'aa')
     if isinstance(fname_anchor, str):
         anchors = read_anchors(fname_anchor)
@@ -201,6 +201,12 @@ def _cmd_export(fname_anchor, out, mode=None, score_use_fluke=None, fmt='gff',
         else:
             with open(out, 'w') as f:
                 f.write(outstr)
+    elif fmt == 'stockholm':
+        if fname is None:
+            raise ValueError('--fname option missing for Stockholm export')
+        seqs = read(fname)
+        export_stockholm(anchors, seqs, mode=mode, score_use_fluke=score_use_fluke)
+        seqs.write(out, 'stockholm')
     elif fmt == 'gff':
         if out is None:
             out = sys.stdout
@@ -243,7 +249,22 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
             fname_seq = fname
         else:
             seqs.write(fname_seq)
-        subprocess.run(f'jalview {fname_seq} --features {fname_export}'.split())
+        subprocess.run(f'jalview {fname_seq} --quiet --features {fname_export}'.split())
+        # Since Jalview 2.11, Jalview appears to start a second process.
+        # We wait here a bit, to guarantee that the temp dir does not
+        # get deleted too early!
+        out = subprocess.check_output(f'jalview --version'.split()).decode()
+        jvinit = 'Jalview version'
+        if jvinit in out:
+            jv = out[out.find(jvinit) + len(jvinit) + 1:].split()[0]
+            print(f'sugar view: detected Jalview version {jv}')
+            majv, minv = map(int, jv.split('.')[:2])
+            if majv == 2 and minv >= 11:
+                print('sugar view: Jalview appears to start a second process')
+                print('sugar view: -> sleep for 5 seconds')
+                import time
+                time.sleep(5)
+
 
 def _cmd_combine(fname_anchor, out, convert_nt=False):
     lot_of_anchors = [read_anchors(fn) for fn in fname_anchor]
@@ -331,7 +352,10 @@ def run_cmdline(cmd_args=None):
     p_go = sub.add_parser('go', help=(msg:='find anchors and write them into anchor file'), description=msg)
     p_print = sub.add_parser('print', help=(msg:='print contents of anchor file'), description=msg)
     p_load = sub.add_parser('load', help=(msg:='load anchors into IPython session'), description=msg)
-    p_export = sub.add_parser('export', help=(msg:='export anchors to gff file (possibly using different mode than aa), JalView feature file or Dialign anchor file'), description=msg)
+    msg = ('export anchors to gff file (possibly using different mode than aa), '
+           'JalView feature file, Dialign anchor file, LocaRNA anchor file, '
+           'or add a GC line to a Stockholm alignment file')
+    p_export = sub.add_parser('export', help=msg, description=msg)
     p_view = sub.add_parser('view', help=(msg:='view anchors in JalView (i.e. call export and start JalView)'), description=msg)
     msg = 'combine (and select or remove) anchors from one file or different files'
     msg2 = ('An expression consists of a file name fname_anchor or fname_anchor|selection to select anchors or fname_anchor||expression to remove anchors, or fname|selection|expression. '
@@ -391,10 +415,13 @@ def run_cmdline(cmd_args=None):
         'format for export, default gff, '
         'for Dialign export, '
         'please specify sequence filename you want to align with Dialign with --fname option, '
-        'the sequence order is needed for the Dialign export, default fname from config file'
+        'the sequence order is needed for the Dialign export, '
+        'for Stockholm export, '
+        'pass alignment with --fname option, '
+        'default fname from config file'
     )
     p_export.add_argument('--fmt', help=msg, default='gff',
-                          choices=('gff', 'jalview', 'dialign', 'locarna'))
+                          choices=('gff', 'jalview', 'dialign', 'locarna', 'stockholm'))
     p_view.add_argument('fname_anchor', help='anchor file name')
     p_view.add_argument('--align', help='align sequences at given anchor')
     p_combine.add_argument('fname_anchor', nargs='+', help='anchor file name')
@@ -416,7 +443,7 @@ def run_cmdline(cmd_args=None):
     for p in (p_print, p_export, p_view, p_cutout):
         choices = ['nt', 'cds', 'aa']
         default = 'nt' if p == p_cutout else 'aa'
-        default_msg = default if p != p_export else 'nt for locarna else aa'
+        default_msg = default if p != p_export else 'nt for locarna and stockholm else aa'
         msg = ('choose mode, nt: relative to original sequence, '
                'cds: accounting for offset (usually coding sequence), aa: translated cds '
                f'(default: {default_msg}), for anchors calculated with no_cds option, mode is ignored')

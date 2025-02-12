@@ -246,3 +246,39 @@ def export_locarna(anchors, mode='nt', score_use_fluke=None):
                 f'{f.seqid}\t{i}\t{j-1}\tA{k}\n'
                 )
     return ''.join(content)
+
+
+def export_stockholm(anchors, seqs, mode='nt', score_use_fluke=None, gap='-.'):
+    """
+    Export anchors to a Stockholm GC line
+    """
+    from sugar._io.stockholm import fts2row
+    assert mode in ('nt', 'cds', 'aa')
+    fts = anchors.convert2fts(mode=mode)
+    for ft in fts:
+        ft.name = ft.name.split('_')[0]
+    fts_for_export = []
+    for name, fts_single_anchor in fts.groupby('name').items():
+        starts = set()
+        stops = set()
+        for ft in fts_single_anchor:
+            # switch from sequence locations to alignment locations
+            try:
+                ind = seqs.d[ft.seqid]._getindex(ft, gap=gap)
+            except KeyError:
+                from warnings import warn
+                warn(f'Seq with id {ft.seqid} not present')
+                continue
+            starts.add(ind.start)
+            stops.add(ind.stop)
+        if len(starts) != 1 or len(stops) != 1:
+            msg = (f'Anchor {name} is not aligned in this alignment, '
+                    'please check the alignment with anchorna view, '
+                    'or remove conflicting anchors with anchorna combine.')
+            raise ValueError(msg)
+        ft.loc.start = starts.pop()
+        ft.loc.stop = stops.pop()
+        fts_for_export.append(ft)
+    row = fts2row(fts.__class__(fts_for_export), lensec=min(len(seq) for seq in seqs))
+    seqs.meta.setdefault('_stockholm', {}).setdefault('GC', {}).AnchoRNA = row
+    return seqs
