@@ -268,3 +268,30 @@ def test_tutorial():
                     line = line.replace('| anchorna view -', '').replace('"', '')
                     line = line.split('#')[0].strip()
                     check(line)
+
+
+def test_export_stockholm():
+    stockholmf = ('# STOCKHOLM 1.0\n'
+                  'S1 ---gGTATACG--\n'
+                  'S2 -ggggtatacc--\n'
+                 #'   ....|-A0-|...\n'
+                  )
+    gcrow = 'GC AnchoRNA ....|-A0-|...'
+    anchorf = (
+        '##gff-version 3\n'
+        '#AnchoRNA anchor file\n'
+        '#offset S1 1\n'
+        '#offset S2 0\n'
+        'S1	anchorna	anchor	1	2	28	+	.	word=BLA;median_score=22;Name=A0\n'
+        'S2	anchorna	fluke	2	3	28	+	.	word=UPS;median_score=22;Name=A0_S2\n'
+    )
+    with _changetmpdir():
+        with open('seqs.stk', 'w') as f:
+            f.write(stockholmf)
+        with open('anchors.gff', 'w') as f:
+            f.write(anchorf)
+        check('anchorna create')
+        check('anchorna export anchors.gff --fname seqs.stk --fmt stockholm --out seqs_gc.stk')
+        with open('seqs_gc.stk') as f:
+            content = f.read()
+    assert gcrow in content
