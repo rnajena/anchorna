@@ -41,7 +41,7 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: install dependencies
         run: |
-          pip install pytest pytest-cov rnajena-sugar tqdm
+          pip install pytest pytest-cov tqdm https://github.com/rnajena/sugar/archive/refs/heads/master.zip
       - name: print conda environment info
         run: |
           conda info -a
