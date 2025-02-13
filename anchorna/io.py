@@ -280,5 +280,5 @@ def export_stockholm(anchors, seqs, mode='nt', score_use_fluke=None, gap='-.'):
         ft.loc.stop = stops.pop()
         fts_for_export.append(ft)
     row = fts2row(fts.__class__(fts_for_export), lensec=min(len(seq) for seq in seqs))
-    seqs.meta.setdefault('_stockholm', {}).setdefault('GC', {}).AnchoRNA = row
+    seqs.meta.setdefault('_stockholm').setdefault('GC').AnchoRNA = row
     return seqs
