@@ -264,7 +264,7 @@ def export_stockholm(anchors, seqs, mode='nt', score_use_fluke=None, gap='-.'):
         for ft in fts_single_anchor:
             # switch from sequence locations to alignment locations
             try:
-                ind = seqs.d[ft.seqid]._getindex(ft, gap=gap)
+                ind = seqs.d[ft.seqid].slindex(gap=gap)[ft]
             except KeyError:
                 from warnings import warn
                 warn(f'Seq with id {ft.seqid} not present')
