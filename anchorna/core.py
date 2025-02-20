@@ -86,8 +86,8 @@ def anchor_at_pos(i, aas, w, gseqid, search_range,
 
     4) Recalculate score, create and return anchor
     """
-    if thr_score_add_anchor < score_add_word:  # there might be anchors with only poor flukes
-        raise ValueError('Please set thr_score_add_anchor >= score_add_word.')
+    # if thr_score_add_anchor < score_add_word:  # there might be anchors with only poor flukes
+    #     raise ValueError('Please set thr_score_add_anchor >= score_add_word.')
     winlen = w
     gaa = [aa for aa in aas if aa.id == gseqid][0]
     assert gaa == aas[0]
