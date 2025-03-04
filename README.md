@@ -32,6 +32,13 @@ To install the package in editable mode, clone the repository and install with `
 
 ### Usage & Tutorial
 
+The motivation, algorithm and performance of AnchoRNA are described in the following preprint:
+
+Tom Eulenfeld, Sandra Triebel, Manja Marz (2025),
+AnchoRNA: Full virus genome alignments through conserved anchor regions,
+doi:[10.1101/2025.01.30.635689](https://doi.org/10.1101/2025.01.30.635689)
+[[pdf](https://www.biorxiv.org/content/10.1101/2025.01.30.635689.full.pdf)]
+
 A command line tool is provided, see `anchorna -h` and the help of subcommands. An example configuration file can be created with `anchorna create`.
 See the example configuration file for a description of AnchoRNA's options. Consult the [API documentation](https://anchorna.readthedocs.io) for details.
 
