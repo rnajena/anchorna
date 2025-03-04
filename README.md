@@ -107,3 +107,6 @@ anchorna view anchors_final.gff
 ### Run tests
 
 Clone or download this repository cd into tests folder and call `pytest`.
+
+[<img src="https://www.python.org/static/community_logos/python-powered-w-200x80.png" alt="python_logo" width="200">](https://www.python.org/)
+[<img src="https://raw.github.com/rnajena/sugar/logo/sugar_logo.png" alt="sugar_logo" width="200">](https://github.com/rnajena/sugar)
