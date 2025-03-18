@@ -220,6 +220,7 @@ class Anchor(collections.UserList):
         for fluke in self:
             start, stop = fluke._apply_mode('nt')
             fluke.start, fluke.stop, fluke.offset = start, stop, 0
+            fluke.strand = '+'
 
 
 class AnchorList(collections.UserList):
