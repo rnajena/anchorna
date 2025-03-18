@@ -42,9 +42,15 @@ def create_example_seqs_file():
 
 
 @contextlib.contextmanager
-def _changetmpdir():
+def __pseudo_tempdir(path):
+    yield path
+
+
+@contextlib.contextmanager
+def _changetmpdir(path=None):
     origin = Path().resolve()
-    with tempfile.TemporaryDirectory() as tmpdir:
+    tmpdirmanager = tempfile.TemporaryDirectory() if path is None else __pseudo_tempdir(path)
+    with tmpdirmanager as tmpdir:
         try:
             os.chdir(tmpdir)
             yield Path(tmpdir)
@@ -295,3 +301,46 @@ def test_export_stockholm():
         with open('seqs_gc.stk') as f:
             content = f.read()
     assert gcrow in content
+
+
+def test_anchorna_multiple_cds():
+    with _changetmpdir():
+        assert '' == check('anchorna create')
+        assert '' == check('anchorna create --tutorial-subset')
+        assert '' == check('anchorna go --no-pbar anchors.gff')
+        out1 = check('anchorna print anchors.gff')
+        out1v = check('anchorna print anchors.gff -v --mode nt')
+        # we create two CDS which have the same anchors
+        anchors = read_anchors('anchors.gff')
+        fts1 = anchors[0:1].convert2fts(mode='nt')
+        fts2 = anchors[3:4].convert2fts(mode='nt')
+        fts3 = anchors[4:5].convert2fts(mode='nt')
+        fts4 = anchors[-1:].convert2fts(mode='nt')
+        for ft1, ft2 in zip(fts1, fts2):
+            assert ft1.seqid == ft2.seqid
+            ft1.loc.stop = ft2.loc.stop
+            ft1.type = 'CDS'
+        for ft1, ft2 in zip(fts3, fts4):
+            assert ft1.seqid == ft2.seqid
+            ft1.loc.stop = ft2.loc.stop
+            ft1.type = 'CDS'
+        seqs = read('pesti_example.gff')
+        seqs.fts = fts1
+        seqs.write('cds1.gff')
+        seqs.fts = fts3
+        seqs.write('cds2.gff')
+        # run anchorna individually on two CDS and combine results
+        with pytest.warns():  # first codon is not a start codon
+            assert '' == check('anchorna go --fname cds1.gff --no-pbar anchors_cds1.gff')
+            assert '' == check('anchorna go --fname cds2.gff --no-pbar anchors_cds2.gff')
+        assert '' == check('anchorna combine anchors_cds1.gff anchors_cds2.gff -o anchors_both_cds.gff')
+        assert '' == check('anchorna combine anchors_cds1.gff anchors_cds2.gff -o anchors_both_cds_nt.gff --convert-nt')
+        out2 = check('anchorna print anchors_both_cds.gff')
+        out2v = check('anchorna print anchors_both_cds.gff -v --mode nt')
+        out3v = check('anchorna print anchors_both_cds_nt.gff -v')
+        # for print with mode aa, we have the wrong offset
+        for line1, line2 in zip(out1.strip().splitlines(), out2.strip().splitlines()):
+            assert line1.split('+')[1] == line2.split('+')[1]
+        # perfect for mode nt
+        assert out2v == out1v
+        assert out3v == out1v
