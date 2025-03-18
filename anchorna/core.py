@@ -54,7 +54,7 @@ def shift_and_find_best_word(seq, word, starti, w, sm, maxshift=None, maxshift_r
         maxshift_right = maxshift
     siminds = maxes([(corrscore(seq[i:i+w], word, sm=sm), i)
                       for i in range(max(0, starti-maxshift_right),
-                                     min(len(seq)-w, starti+maxshift+1))],
+                                     min(len(seq)-w+1, starti+maxshift+1))],
                      default=(0, None))
     sim, ind = min((abs(ind - starti), sim, ind) for sim, ind in siminds)[1:]
     if len(siminds) > 1:
@@ -184,7 +184,7 @@ def find_anchors_winlen(aas, w, gseqid, indexrange=None, anchors=None, njobs=0, 
     aas.insert(0, aas.pop(i))
     gaa = aas[0]
     if indexrange is None:
-        indexrange = list(range(len(gaa)-w))
+        indexrange = list(range(len(gaa)-w+1))
     do_work = partial(anchor_at_pos, aas=aas, w=w, gseqid=gseqid, **kw)
     anchors = _start_parallel_jobs(indexrange, do_work, anchors, njobs=njobs, pbar=pbar)
     assert all([f[0].seqid == gseqid for f in anchors])
@@ -352,7 +352,7 @@ def combine(lot_of_anchors, convert_nt=False):
     anchors = set()
     for nans in lot_of_anchors:
         if len(set(nans) & anchors) > 0:
-            ids = ', '.join(a.id for a in nans & anchors)
+            ids = ', '.join(a.id for a in set(nans) & anchors)
             raise ValueError(f'Anchors {ids} exist in multiple files')
         for anchor in nans:
             for f in anchor:
