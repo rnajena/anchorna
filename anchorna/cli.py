@@ -233,8 +233,13 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
                 if mode == 'aa':
                     seqs = seqs.translate(complete=True, final_stop=False)
             else:
-                for seq in seqs:
-                    seq.sl(gap='-', inplace=True)[offsets[seq.id]:]
+                if anchors[0].strand == '-':
+                    for seq in seqs:
+                        seq.sl(gap='-', inplace=True)[:offsets[seq.id]]
+                    seqs.rc()
+                else:
+                    for seq in seqs:
+                        seq.sl(gap='-', inplace=True)[offsets[seq.id]:]
                 if mode == 'aa':
                     seqs = seqs.translate(complete=True)
         if align:

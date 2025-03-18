@@ -344,3 +344,35 @@ def test_anchorna_multiple_cds():
         # perfect for mode nt
         assert out2v == out1v
         assert out3v == out1v
+
+
+def test_anchorna_antisense():
+    with _changetmpdir('./tmp'):
+        assert '' == check('anchorna create')
+        assert '' == check('anchorna create --tutorial-subset')
+        assert '' == check('anchorna go --no-pbar anchors.gff')
+        out1 = check('anchorna print anchors.gff')
+        out1v = check('anchorna print anchors.gff -v')
+        seqs1 = read('pesti_example.gff')
+        seqs2 = seqs1.copy().rc(update_fts=True)
+        seqs2.write('pestirc.gff')
+        assert '' == check('anchorna go --no-pbar anchorsrc.gff --fname pestirc.gff')
+        out2v = check('anchorna print anchorsrc.gff -v')
+        assert out2v == out1v
+        anchors1 = read_anchors('anchors.gff')
+        anchors2 = read_anchors('anchorsrc.gff')
+        c1 = cutout(seqs1, anchors1, '3', '10')
+        c2 = cutout(seqs2, anchors2, '10', '3')
+        for s in c1 + c2:
+            del s.meta.offset
+        assert c2.rc() == c1
+        c1 = cutout(seqs1.copy()['cds'].translate(), anchors1, '3', '10^', mode='aa')
+        c2 = cutout(seqs2.copy()['cds'].translate(), anchors2, '3', '10^', mode='aa')
+        for s in c1 + c2:
+            del s.meta.fts
+        assert c2 == c1
+        c1 = cutout(seqs1.copy()['cds'], anchors1, '3', '10^', mode='cds')
+        c2 = cutout(seqs2.copy()['cds'], anchors2, '3', '10^', mode='cds')
+        for s in c1 + c2:
+            del s.meta.fts
+        assert c2 == c1
