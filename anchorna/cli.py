@@ -20,7 +20,6 @@ from warnings import warn
 from sugar import read
 from anchorna.core import combine, cutout, find_my_anchors
 from anchorna.io import export_dialign, export_locarna, export_jalview, export_stockholm, read_anchors
-from anchorna.util import _apply_mode_fluke
 
 
 EXAMPLE_TOML_CONFIG = """### Configuration for AnchoRNA in TOML format
@@ -240,10 +239,10 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
                     seqs = seqs.translate(complete=True)
         if align:
             anchor = anchors[int(align.lower().removeprefix('a'))]
-            start = max(_apply_mode_fluke(fluke, mode=mode)[0] for fluke in anchor)
+            start = max(fluke._apply_mode(mode)[0] for fluke in anchor)
             for seq in seqs:
                 fluke = anchor.sid[seq.id]
-                seq.data = '-' * (start - _apply_mode_fluke(fluke, mode=mode)[0]) + seq.data
+                seq.data = '-' * (start - fluke._apply_mode(mode)[0]) + seq.data
         if mode == 'nt' and align is None and seqs[0].meta._fmt == 'stockholm':
             # if input file is a stockholm file, just keep it if no changes for seqs
             fname_seq = fname

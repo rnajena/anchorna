@@ -35,47 +35,26 @@ class Fluke(Attr):
 
     @property
     def strand(self):
-        return getattr(self, '_strand', '+')
+        return self.get('strand', '+')
 
-    @strand.setter
-    def strand(self, value):
-        if value is not None:
-            self._strand = value
-
-
-def _apply_mode(i, o, mode, islen=False, strand='+'):
-    """
-    Transform index, allowed modes are ``'aa', 'cds', 'nt'``
-    """
-    if mode in ('aa', None):
-        return i
-    elif mode == 'cds' or mode == 'nt' and islen:
-        return 3 * i
-    elif mode == 'nt':
-        if strand == '-':
-            return o - 3 * i
+    def _apply_mode(self, mode):
+        """
+        Transform index, allowed modes are ``'aa', 'cds', 'nt'``
+        """
+        fluke = self
+        assert mode in ('aa', 'cds', 'nt')
+        o = fluke.offset
+        i1 = fluke.start
+        i2 = fluke.stop
+        assert i1 < i2
+        if mode in ('aa', None):
+            return i1, i2
+        elif mode == 'cds':
+            return 3 * i1, 3 * i2
+        elif mode == 'nt' and fluke.strand == '-':
+            return o - 3 * i2, o - 3 * i1
         else:
-            return o + 3 * i
-    raise ValueError('mode not allowed')
-
-
-def _apply_mode_fluke(fluke, mode):
-    """
-    Transform index, allowed modes are ``'aa', 'cds', 'nt'``
-    """
-    assert mode in ('aa', 'cds', 'nt')
-    o = fluke.offset
-    i1 = fluke.start
-    i2 = fluke.stop
-    assert i1 < i2
-    if mode in ('aa', None):
-        return i1, i2
-    elif mode == 'cds':
-        return 3 * i1, 3 * i2
-    elif mode == 'nt' and fluke.strand == '-':
-        return o - 3 * i2, o - 3 * i1
-    else:
-        return o + 3 * i1, o + 3 * i2
+            return o + 3 * i1, o + 3 * i2
 
 
 class Anchor(collections.UserList):
@@ -124,15 +103,12 @@ class Anchor(collections.UserList):
         return [f.seqid for f in self]
 
     def tostr(self, i='', verbose=False, mode='aa'):
-        # ind = _apply_mode(self.guide.start, self.guide.offset, mode=mode, strand=self.strand)
-        # len_ = _apply_mode(self.guide.len, self.guide.offset,
-        #                    mode=mode, islen=True, strand=self.strand)
-        start, stop = _apply_mode_fluke(self.guide, mode)
+        start, stop = self.guide._apply_mode(mode)
         poor = sum(f.poor for f in self)
         out = f'A{i} {start}+{stop-start}  minscore {self.minscore}  poor {poor}  {self.guide.word}'
         if not verbose:
             return out
-        flukes = [f'  F{j} {_apply_mode_fluke(f, mode)[0]}  medscore {f.median_score}  {f.word}  {f.seqid}' + '  (poor)' * f.poor
+        flukes = [f'  F{j} {f._apply_mode(mode)[0]}  medscore {f.median_score}  {f.word}  {f.seqid}' + '  (poor)' * f.poor
                   for j, f in enumerate(self)]
         return '\n'.join([out]+flukes)
 
@@ -242,7 +218,7 @@ class Anchor(collections.UserList):
 
     def _convert_nt(self):
         for fluke in self:
-            start, stop = _apply_mode_fluke(fluke, 'nt')
+            start, stop = fluke._apply_mode('nt')
             fluke.start, fluke.stop, fluke.offset = start, stop, 0
 
 
@@ -368,9 +344,8 @@ def anchors2fts(anchors, mode=None):
                 assert j > 0
                 ftype = 'fluke'
                 name=f'A{i}_{f.seqid}'
-            start, stop = _apply_mode_fluke(f, mode)
-            ft = Feature(ftype, start=start, stop=stop,
-                         strand=f.strand if mode != 'nt' else '+',
+            start, stop = f._apply_mode(mode)
+            ft = Feature(ftype, start=start, stop=stop, strand=f.strand,
                          meta=dict(name=name, seqid=f.seqid, score=f.score,
                                    _gff=Attr(source='anchorna', word=f.word,
                                              median_score=f.median_score)))

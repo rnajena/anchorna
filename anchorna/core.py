@@ -16,7 +16,7 @@ from sugar import BioBasket
 from sugar.data import submat
 from tqdm import tqdm
 
-from anchorna.util import _apply_mode_fluke, corrscore, Anchor, AnchorList, Fluke
+from anchorna.util import corrscore, Anchor, AnchorList, Fluke
 
 log = logging.getLogger('anchorna')
 
@@ -241,7 +241,7 @@ def find_my_anchors(seqs, remove=True, aggressive_remove=True,
         else:
             if all(cds):
                 # TODO cutout command not yet working with - strand
-                strands = {s.loc.strand for s in cds}
+                strands = {ft.loc.strand for ft in cds}
                 if len(strands) > 1:
                     raise ValueError('CDS features are on a different strand')
                 strand = str(strands.pop())
@@ -304,7 +304,7 @@ def _transform_cutout_index(A, B, C, id_, seq, mode):
         i2 = seq.fts.get('cds').loc.stop
         i1 = i2 - 3
     else:
-        i1, i2 = _apply_mode_fluke(A[id_], mode)
+        i1, i2 = A[id_]._apply_mode(mode)
     i = i1 if B == '<' else i2 if B == '>' else (i1+i2)//2
     i += C
     return i
