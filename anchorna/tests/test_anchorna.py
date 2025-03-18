@@ -347,11 +347,10 @@ def test_anchorna_multiple_cds():
 
 
 def test_anchorna_antisense():
-    with _changetmpdir('./tmp'):
+    with _changetmpdir():
         assert '' == check('anchorna create')
         assert '' == check('anchorna create --tutorial-subset')
         assert '' == check('anchorna go --no-pbar anchors.gff')
-        out1 = check('anchorna print anchors.gff')
         out1v = check('anchorna print anchors.gff -v')
         seqs1 = read('pesti_example.gff')
         seqs2 = seqs1.copy().rc(update_fts=True)
@@ -376,3 +375,52 @@ def test_anchorna_antisense():
         for s in c1 + c2:
             del s.meta.fts
         assert c2 == c1
+
+
+def test_anchorna_multiple_cds_antisense():
+    with _changetmpdir():
+        assert '' == check('anchorna create')
+        assert '' == check('anchorna create --tutorial-subset')
+        assert '' == check('anchorna go --no-pbar anchors.gff')
+        # we create two CDS, one on + one on - strand, both have the same anchors
+        anchors = read_anchors('anchors.gff')
+        fts1 = anchors[0:1].convert2fts(mode='nt')
+        fts2 = anchors[3:4].convert2fts(mode='nt')
+        for ft1, ft2 in zip(fts1, fts2):
+            assert ft1.seqid == ft2.seqid
+            ft1.loc.stop = ft2.loc.stop
+            ft1.type = 'CDS'
+        seqs = read('pesti_example.gff')
+        seqs.fts = fts1
+        seqs = (seqs + seqs.copy().rc(update_fts=True)).merge(update_fts=True)
+        seqs.write('combined.gff')
+        seqs1 = seqs.copy()
+        seqs1.fts = seqs1.fts.select(strand='+')
+        seqs1.write('cds1.gff')
+        seqs2 = seqs.copy()
+        seqs2.fts = seqs2.fts.select(strand='-')
+        seqs2.write('cds2.gff')
+        # run anchorna individually on two CDS and combine results
+        with pytest.warns():  # first codon is not a start codon
+            assert '' == check('anchorna go --fname combined.gff --no-pbar anchors_combined.gff')
+            assert '' == check('anchorna go --fname cds1.gff --no-pbar anchors_cds1.gff')
+            assert '' == check('anchorna go --fname cds2.gff --no-pbar anchors_cds2.gff')
+        with pytest.raises(ValueError, match='Cannot combine'):
+            check('anchorna combine anchors_cds1.gff anchors_cds2.gff')
+        assert '' == check('anchorna combine anchors_cds1.gff anchors_cds2.gff -o anchors_both_cds_nt.gff --convert-nt')
+        out2 = check('anchorna print anchors_combined.gff --mode nt')
+        out2v = check('anchorna print anchors_combined.gff -v --mode nt')
+        out3 = check('anchorna print anchors_both_cds_nt.gff')
+        out3v = check('anchorna print anchors_both_cds_nt.gff -v')
+        assert out2 in out3
+        assert out2v in out3v
+
+        anchors = read_anchors('anchors_both_cds_nt.gff')
+        c1 = cutout(seqs, anchors, '0', '2', mode='aa')
+        c2 = cutout(seqs, anchors, '5', '7', mode='aa')
+        assert c2.rc() == c1
+        assert '' == check('anchorna cutout anchors_both_cds_nt.gff 5 7 --fname combined.gff -o cutout.fasta')
+        c3 = read('cutout.fasta')
+        for s in c1 + c3:
+            s.meta = {}
+        assert c3.rc() == c1
