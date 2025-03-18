@@ -49,7 +49,8 @@ def __pseudo_tempdir(path):
 @contextlib.contextmanager
 def _changetmpdir(path=None):
     origin = Path().resolve()
-    tmpdirmanager = tempfile.TemporaryDirectory() if path is None else __pseudo_tempdir(path)
+    # ignore_cleanup_errors is necessary for windows
+    tmpdirmanager = tempfile.TemporaryDirectory(ignore_cleanup_errors=os.name == 'nt') if path is None else __pseudo_tempdir(path)
     with tmpdirmanager as tmpdir:
         try:
             os.chdir(tmpdir)
