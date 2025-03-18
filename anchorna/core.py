@@ -16,7 +16,7 @@ from sugar import BioBasket
 from sugar.data import submat
 from tqdm import tqdm
 
-from anchorna.util import _apply_mode, corrscore, Anchor, AnchorList, Fluke
+from anchorna.util import _apply_mode_fluke, corrscore, Anchor, AnchorList, Fluke
 
 log = logging.getLogger('anchorna')
 
@@ -215,15 +215,16 @@ def find_my_anchors(seqs, remove=True, aggressive_remove=True,
                 for aa in aas:
                     aa.meta.offset = 0
         else:
-            all_cds = all(seq.fts.get('cds') for seq in seqs)
+            cds = [seq.fts.get('cds') for seq in seqs]
             if all_offset:
                 log.info('Found offsets in sequence file, translate full sequence')
                 aas = seqs.translate(complete=True)
-            elif all_cds:
+            elif all(cds):
                 log.info('Found CDS features in sequence file, translate CDS')
                 aas = seqs['cds'].translate(complete=True, final_stop=False, warn=True)
                 for aa in aas:
-                    aa.meta.offset = aa.fts.get('cds').loc.start
+                    loc = aa.fts.get('cds').loc
+                    aa.meta.offset = loc.stop if loc.strand == '-' else  loc.start
             else:
                 raise ValueError('Did not found CDS annotation or offset for at least one sequence')
             log.debug('Result of translation are {}'.format(aas.tostr(h=0)))
@@ -237,6 +238,15 @@ def find_my_anchors(seqs, remove=True, aggressive_remove=True,
         log.info(f'Merged into {len(anchors)} anchors')
         if no_cds:
             anchors.no_cds = True
+        else:
+            if all(cds):
+                # TODO cutout command not yet working with - strand
+                strands = {s.loc.strand for s in cds}
+                if len(strands) > 1:
+                    raise ValueError('CDS features are on a different strand')
+                strand = str(strands.pop())
+                for anchor in anchors:
+                    anchor.strand = strand
     else:
         anchors = continue_with
     if remove:
@@ -294,8 +304,7 @@ def _transform_cutout_index(A, B, C, id_, seq, mode):
         i2 = seq.fts.get('cds').loc.stop
         i1 = i2 - 3
     else:
-        i1 = _apply_mode(A[id_].start, A[id_].offset, mode=mode)
-        i2 = _apply_mode(A[id_].stop, A[id_].offset, mode=mode)
+        i1, i2 = _apply_mode_fluke(A[id_], mode)
     i = i1 if B == '<' else i2 if B == '>' else (i1+i2)//2
     i += C
     return i
@@ -355,6 +364,8 @@ def combine(lot_of_anchors, convert_nt=False):
             ids = ', '.join(a.id for a in set(nans) & anchors)
             raise ValueError(f'Anchors {ids} exist in multiple files')
         for anchor in nans:
+            if anchor.strand == '-':
+                raise ValueError('Cannot combine anchors on - strand, use --convert-nt option')
             for f in anchor:
                 doff = f.offset - offsets[f.seqid]
                 f.offset = offsets[f.seqid]

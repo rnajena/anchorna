@@ -11,7 +11,7 @@ import matplotlib.colors as mcolors
 from matplotlib.colors import to_hex, to_rgb
 from sugar import read_fts
 
-from anchorna.util import _apply_mode, fts2anchors, Anchor, AnchorList, Fluke
+from anchorna.util import _apply_mode_fluke, fts2anchors, Anchor, AnchorList, Fluke
 
 
 log = logging.getLogger('anchorna')
@@ -28,7 +28,7 @@ def write_anchors(anchors, fname, mode=None):
        The result is a file which should not be read in again with anchorna.
     """
     from anchorna import __version__
-    fts = anchors.convert2fts(mode=mode)
+    fts = anchors.convert2fts(mode=mode or 'aa')
     offsets = {ft.seqid: ft.meta._gff.pop('offset') for ft in fts}
     offsets_header = ''.join(f'#offset {seqid} {offset}\n' for seqid, offset in offsets.items())
     if mode is None:
@@ -173,7 +173,7 @@ def export_dialign(anchors, seqids, mode='aa', score_use_fluke=None):
     content = []
     for anchor in anchors:
         f0 = anchor.sort(key=sortkey_score)[-1]
-        start0 = _apply_mode(f0.start, f0.offset, mode)
+        start0 = _apply_mode_fluke(f0, mode)[0]
         i = sortkey_ids(f0)
         anchor.sort(key=sortkey_ids)
         for f in anchor:
@@ -182,10 +182,9 @@ def export_dialign(anchors, seqids, mode='aa', score_use_fluke=None):
                     f.score < score_use_fluke):
                 continue
             assert f.len == f0.len
-            start = _apply_mode(f.start, f.offset, mode)
-            len_ = _apply_mode(f.len, f.offset, mode, islen=True)
+            start, stop = _apply_mode_fluke(f, mode)
             content.append(
-                f'{i+1} {j+1} {start0+1} {start+1} {len_} {f.score}\n'
+                f'{i+1} {j+1} {start0+1} {start+1} {stop-start} {f.score}\n'
                 )
     return ''.join(content)
 
@@ -218,8 +217,7 @@ def export_jalview(anchors, mode='aa', score_use_fluke=None):
             header.append(
                 f'{al}\t{c}\n'
                 )
-            i = _apply_mode(f.start, f.offset, mode)
-            j = _apply_mode(f.stop, f.offset, mode)
+            i, j = _apply_mode_fluke(f, mode)
             content.append(f'{f.word[:5]} w{w} poor:{poor}\t{f.seqid}\t-1\t{i+1}\t{j}\t{al}\n')
     header.append('\nSTARTFILTERS\nENDFILTERS\n\n')
     return ''.join(header) + ''.join(content)
@@ -240,8 +238,7 @@ def export_locarna(anchors, mode='nt', score_use_fluke=None):
             # B   8       14      first_box
             # A   39      42      ACA-box
             # B   25      28      ACA-box
-            i = _apply_mode(f.start, f.offset, mode)
-            j = _apply_mode(f.stop, f.offset, mode)
+            i, j = _apply_mode_fluke(f, mode)
             content.append(
                 f'{f.seqid}\t{i}\t{j-1}\tA{k}\n'
                 )

@@ -33,8 +33,17 @@ class Fluke(Attr):
     def len(self):
         return self.stop - self.start
 
+    @property
+    def strand(self):
+        return getattr(self, '_strand', '+')
 
-def _apply_mode(i, o, mode, islen=False):
+    @strand.setter
+    def strand(self, value):
+        if value is not None:
+            self._strand = value
+
+
+def _apply_mode(i, o, mode, islen=False, strand='+'):
     """
     Transform index, allowed modes are ``'aa', 'cds', 'nt'``
     """
@@ -43,8 +52,30 @@ def _apply_mode(i, o, mode, islen=False):
     elif mode == 'cds' or mode == 'nt' and islen:
         return 3 * i
     elif mode == 'nt':
-        return 3 * i + o
+        if strand == '-':
+            return o - 3 * i
+        else:
+            return o + 3 * i
     raise ValueError('mode not allowed')
+
+
+def _apply_mode_fluke(fluke, mode):
+    """
+    Transform index, allowed modes are ``'aa', 'cds', 'nt'``
+    """
+    assert mode in ('aa', 'cds', 'nt')
+    o = fluke.offset
+    i1 = fluke.start
+    i2 = fluke.stop
+    assert i1 < i2
+    if mode in ('aa', None):
+        return i1, i2
+    elif mode == 'cds':
+        return 3 * i1, 3 * i2
+    elif mode == 'nt' and fluke.strand == '-':
+        return o - 3 * i2, o - 3 * i1
+    else:
+        return o + 3 * i1, o + 3 * i2
 
 
 class Anchor(collections.UserList):
@@ -66,6 +97,18 @@ class Anchor(collections.UserList):
     def id(self):
         return f'A {self.guide.start}+{self.guide.len}'
 
+    @property
+    def strand(self):
+        strands = {f.strand for f in self}
+        assert len(strands) <= 1
+        if len(strands) == 1:
+            return strands.pop()
+
+    @strand.setter
+    def strand(self, value):
+        for f in self:
+            f.strand = value
+
     def __hash__(self):
         return hash((self.guide.start, self.guide.len, self.guide.offset))
 
@@ -81,14 +124,15 @@ class Anchor(collections.UserList):
         return [f.seqid for f in self]
 
     def tostr(self, i='', verbose=False, mode='aa'):
-        ind = _apply_mode(self.guide.start, self.guide.offset, mode=mode)
-        len_ = _apply_mode(self.guide.len, self.guide.offset,
-                           mode=mode, islen=True)
+        # ind = _apply_mode(self.guide.start, self.guide.offset, mode=mode, strand=self.strand)
+        # len_ = _apply_mode(self.guide.len, self.guide.offset,
+        #                    mode=mode, islen=True, strand=self.strand)
+        start, stop = _apply_mode_fluke(self.guide, mode)
         poor = sum(f.poor for f in self)
-        out = f'A{i} {ind}+{len_}  minscore {self.minscore}  poor {poor}  {self.guide.word}'
+        out = f'A{i} {start}+{stop-start}  minscore {self.minscore}  poor {poor}  {self.guide.word}'
         if not verbose:
             return out
-        flukes = [f'  F{j} {_apply_mode(f.start, f.offset, mode=mode)}  medscore {f.median_score}  {f.word}  {f.seqid}' + '  (poor)' * f.poor
+        flukes = [f'  F{j} {_apply_mode_fluke(f, mode)[0]}  medscore {f.median_score}  {f.word}  {f.seqid}' + '  (poor)' * f.poor
                   for j, f in enumerate(self)]
         return '\n'.join([out]+flukes)
 
@@ -198,9 +242,7 @@ class Anchor(collections.UserList):
 
     def _convert_nt(self):
         for fluke in self:
-            start, stop, offset = fluke.start, fluke.stop, fluke.offset
-            start = _apply_mode(start, offset, 'nt')
-            stop = _apply_mode(stop, offset, 'nt')
+            start, stop = _apply_mode_fluke(fluke, 'nt')
             fluke.start, fluke.stop, fluke.offset = start, stop, 0
 
 
@@ -326,9 +368,9 @@ def anchors2fts(anchors, mode=None):
                 assert j > 0
                 ftype = 'fluke'
                 name=f'A{i}_{f.seqid}'
-            start = _apply_mode(f.start, f.offset, mode)
-            stop = _apply_mode(f.stop, f.offset, mode)
+            start, stop = _apply_mode_fluke(f, mode)
             ft = Feature(ftype, start=start, stop=stop,
+                         strand=f.strand if mode != 'nt' else '+',
                          meta=dict(name=name, seqid=f.seqid, score=f.score,
                                    _gff=Attr(source='anchorna', word=f.word,
                                              median_score=f.median_score)))
@@ -360,7 +402,8 @@ def fts2anchors(fts, no_cds=False):
             if not ft.meta.name.startswith(aname):
                 raise ValueError(f'Fluke with name {ft.meta.name} not part of anchor {aname}')
             start, stop = ft.locs.range
-            fluke = Fluke(seqid=ft.seqid, score=ft.meta.score, start=start, stop=stop,
+            fluke = Fluke(seqid=ft.seqid, score=ft.meta.score,
+                          start=start, stop=stop, strand=str(ft.loc.strand),
                           word=ft.meta._gff.word, poor=hasattr(ft.meta._gff, 'poor'),
                           median_score = float(ft.meta._gff.get('median_score', 1)))
             if hasattr(ft.meta._gff, 'offset'):
