@@ -41,22 +41,35 @@ def create_example_seqs_file():
     seqs.write(fname, archive='zip')
 
 
-@contextlib.contextmanager
-def __pseudo_tempdir(path):
-    yield path
+# @contextlib.contextmanager
+# def __pseudo_tempdir(path):
+#     yield path
 
 
-@contextlib.contextmanager
-def _changetmpdir(path=None):
+# @contextlib.contextmanager
+# def _changetmpdir(path=None):
+#     origin = Path().resolve()
+#     # ignore_cleanup_errors is necessary for windows
+#     tmpdirmanager = tempfile.TemporaryDirectory(ignore_cleanup_errors=os.name == 'nt') if path is None else __pseudo_tempdir(path)
+#     with tmpdirmanager as tmpdir:
+#         try:
+#             os.chdir(tmpdir)
+#             yield Path(tmpdir)
+#         finally:
+#             os.chdir(origin)
+
+
+@pytest.fixture()
+def tmp_path_cd(tmp_path):
+    """
+    A fixture which changes the dir to a temporary directory
+    """
     origin = Path().resolve()
-    # ignore_cleanup_errors is necessary for windows
-    tmpdirmanager = tempfile.TemporaryDirectory(ignore_cleanup_errors=os.name == 'nt') if path is None else __pseudo_tempdir(path)
-    with tmpdirmanager as tmpdir:
-        try:
-            os.chdir(tmpdir)
-            yield Path(tmpdir)
-        finally:
-            os.chdir(origin)
+    try:
+        os.chdir(tmp_path)
+        yield tmp_path
+    finally:
+        os.chdir(origin)
 
 
 def check(cmd):
@@ -86,178 +99,178 @@ def test_anchorna_script_help():
     assert b'go' in check_output('anchorna go -h'.split())
 
 
-def test_reproduce_anchor_file_subset():
-    with _changetmpdir() as tmpdir:
-        check('anchorna create --tutorial-subset')
-        check('anchorna go --no-pbar anchors.gff --no-logging --no-aggressive-remove')
-        anchors = read_anchors('anchors.gff')
-        fname = files('anchorna.tests.data').joinpath('anchors_subset.gff')
-        try:
-            anchors2 = read_anchors(fname)
-        except FileNotFoundError:
-            warn(f'Did not find test file {fname}, create it')
-            import shutil
-            shutil.copy(tmpdir / 'anchors.gff', fname)
-            anchors2 = read_anchors(fname)
+def test_reproduce_anchor_file_subset(tmp_path_cd):
+    tmpdir = tmp_path_cd
+    check('anchorna create --tutorial-subset')
+    check('anchorna go --no-pbar anchors.gff --no-logging --no-aggressive-remove')
+    anchors = read_anchors('anchors.gff')
+    fname = files('anchorna.tests.data').joinpath('anchors_subset.gff')
+    try:
+        anchors2 = read_anchors(fname)
+    except FileNotFoundError:
+        warn(f'Did not find test file {fname}, create it')
+        import shutil
+        shutil.copy(tmpdir / 'anchors.gff', fname)
+        anchors2 = read_anchors(fname)
     assert anchors2 == anchors
 
 
-def test_anchorna_workflow_subset():
+def test_anchorna_workflow_subset(tmp_path_cd):
     """
     Tests the full anchorna workflow with a subset of the example sequences
     """
-    with _changetmpdir() as tmpdir:
-        assert '' == check('anchorna create')
-        fname_seqs = tmpdir / 'pesti_example.gff'
-        assert '' == check('anchorna create --tutorial-subset')
-        assert '' == check('anchorna go --no-pbar anchors.gff')
-        assert 'A11' in check('anchorna print anchors.gff')
-        assert 'F1' in check('anchorna print anchors.gff -v')
-        out1 = check('anchorna combine anchors.gff|a5:a10|a8')
-        out2 = check('anchorna combine anchors.gff|a5,a6,a7,a9')
-        assert out1 == out2
-        assert 'anchor0' in check('anchorna export --fmt jalview anchors.gff')
-        assert 'anchor0' in check('anchorna export --fmt jalview -m nt anchors.gff')
-        assert 'anchor0' in check('anchorna export --fmt jalview -m aa anchors.gff')
-        assert '' in check('anchorna export --fmt jalview -m cds anchors.gff -o test_jalview.txt')
-        assert 'anchorna' in check('anchorna export anchors.gff')
-        assert 'anchorna' in check('anchorna export -m nt anchors.gff')
-        assert 'anchorna' in check('anchorna export -m aa anchors.gff')
-        assert 'anchorna' in check('anchorna combine anchors.gff --convert-nt')
-        assert '' in check('anchorna export -m cds anchors.gff -o test_anchor_export.gff')
-        with pytest.raises(IOError):
-            read_anchors('test_anchor_export.gff')
-        read_anchors('test_anchor_export.gff', check_header=False)
-        assert '1' in check('anchorna export --fmt dialign anchors.gff')
-        assert '1' in check('anchorna export --fmt dialign -m nt anchors.gff')
-        assert '1' in check('anchorna export --fmt dialign -m cds anchors.gff')
-        with patch('subprocess.run'):  # we do not want to actually start jalview here
-            assert '' == check('anchorna view anchors.gff')
-            assert '' == check('anchorna view anchors.gff --align a1')
+    tmpdir = tmp_path_cd
+    assert '' == check('anchorna create')
+    fname_seqs = tmpdir / 'pesti_example.gff'
+    assert '' == check('anchorna create --tutorial-subset')
+    assert '' == check('anchorna go --no-pbar anchors.gff')
+    assert 'A11' in check('anchorna print anchors.gff')
+    assert 'F1' in check('anchorna print anchors.gff -v')
+    out1 = check('anchorna combine anchors.gff|a5:a10|a8')
+    out2 = check('anchorna combine anchors.gff|a5,a6,a7,a9')
+    assert out1 == out2
+    assert 'anchor0' in check('anchorna export --fmt jalview anchors.gff')
+    assert 'anchor0' in check('anchorna export --fmt jalview -m nt anchors.gff')
+    assert 'anchor0' in check('anchorna export --fmt jalview -m aa anchors.gff')
+    assert '' in check('anchorna export --fmt jalview -m cds anchors.gff -o test_jalview.txt')
+    assert 'anchorna' in check('anchorna export anchors.gff')
+    assert 'anchorna' in check('anchorna export -m nt anchors.gff')
+    assert 'anchorna' in check('anchorna export -m aa anchors.gff')
+    assert 'anchorna' in check('anchorna combine anchors.gff --convert-nt')
+    assert '' in check('anchorna export -m cds anchors.gff -o test_anchor_export.gff')
+    with pytest.raises(IOError):
+        read_anchors('test_anchor_export.gff')
+    read_anchors('test_anchor_export.gff', check_header=False)
+    assert '1' in check('anchorna export --fmt dialign anchors.gff')
+    assert '1' in check('anchorna export --fmt dialign -m nt anchors.gff')
+    assert '1' in check('anchorna export --fmt dialign -m cds anchors.gff')
+    with patch('subprocess.run'):  # we do not want to actually start jalview here
+        assert '' == check('anchorna view anchors.gff')
+        assert '' == check('anchorna view anchors.gff --align a1')
 
-        anchors = read_anchors('anchors.gff')
+    anchors = read_anchors('anchors.gff')
 
-        # test cutout
-        assert '>' in check(f'anchorna cutout anchors.gff atg>+5 end-10 --fname {fname_seqs}')
+    # test cutout
+    assert '>' in check(f'anchorna cutout anchors.gff atg>+5 end-10 --fname {fname_seqs}')
 
-        seqs = read(fname_seqs)
-        seqs2 = cutout(seqs, anchors, 'start+10', 'a5^-5')
-        seqs3 = cutout(seqs, anchors, 'a5^-5', '*>')
-        seqs4 = cutout(seqs, anchors, '*>', 'end')
-        assert str(seqs[0, 10:]) == seqs2[0].data + seqs3[0].data + seqs4[0].data
+    seqs = read(fname_seqs)
+    seqs2 = cutout(seqs, anchors, 'start+10', 'a5^-5')
+    seqs3 = cutout(seqs, anchors, 'a5^-5', '*>')
+    seqs4 = cutout(seqs, anchors, '*>', 'end')
+    assert str(seqs[0, 10:]) == seqs2[0].data + seqs3[0].data + seqs4[0].data
 
-        fname = tmpdir / 'pesti_test_cutout.sjson'
-        assert '' == check(f'anchorna cutout anchors.gff a0> a2< -o {fname}')
-        assert '' == check(f'anchorna go --fname {fname} --no-pbar anchors_cutout.gff')
-        assert '' == check('anchorna combine anchors.gff||a1 anchors_cutout.gff -o anchors_combined.gff')
-        assert read_anchors('anchors_combined.gff') == anchors
+    fname = tmpdir / 'pesti_test_cutout.sjson'
+    assert '' == check(f'anchorna cutout anchors.gff a0> a2< -o {fname}')
+    assert '' == check(f'anchorna go --fname {fname} --no-pbar anchors_cutout.gff')
+    assert '' == check('anchorna combine anchors.gff||a1 anchors_cutout.gff -o anchors_combined.gff')
+    assert read_anchors('anchors_combined.gff') == anchors
 
-        fname = tmpdir / 'pesti_test_cutout2.sjson'
-        assert '' == check(f'anchorna cutout anchors.gff a6> a10< -o {fname}')
-        assert '' == check(f'anchorna go --fname {fname} --no-pbar anchors_cutout2.gff --search-range=1000')
-        assert '' == check('anchorna combine anchors.gff||a7:a10 anchors_cutout2.gff -o anchors_combined2.gff')
-        assert read_anchors('anchors_combined2.gff') == read_anchors('anchors.gff')
+    fname = tmpdir / 'pesti_test_cutout2.sjson'
+    assert '' == check(f'anchorna cutout anchors.gff a6> a10< -o {fname}')
+    assert '' == check(f'anchorna go --fname {fname} --no-pbar anchors_cutout2.gff --search-range=1000')
+    assert '' == check('anchorna combine anchors.gff||a7:a10 anchors_cutout2.gff -o anchors_combined2.gff')
+    assert read_anchors('anchors_combined2.gff') == read_anchors('anchors.gff')
 
-        # check --no-remove option and --continue-with option
-        assert '' == check('anchorna go --no-remove --no-pbar anchors2.gff')
-        assert '' == check('anchorna go --continue-with anchors2.gff --no-pbar anchors3.gff')
-        assert len(anchors) < len(read_anchors('anchors2.gff'))
-        assert anchors == read_anchors('anchors3.gff')
+    # check --no-remove option and --continue-with option
+    assert '' == check('anchorna go --no-remove --no-pbar anchors2.gff')
+    assert '' == check('anchorna go --continue-with anchors2.gff --no-pbar anchors3.gff')
+    assert len(anchors) < len(read_anchors('anchors2.gff'))
+    assert anchors == read_anchors('anchors3.gff')
 
-        # test json
-        json = tmpdir / 'anchors.json'
-        write_json(anchors, json)
-        assert load_json(json) == anchors
+    # test json
+    json = tmpdir / 'anchors.json'
+    write_json(anchors, json)
+    assert load_json(json) == anchors
 
-        _fix_open_log_file_on_windows()
+    _fix_open_log_file_on_windows()
 
 
-def test_anchorna_workflow_subset_poor():
-    with _changetmpdir() as tmpdir:
-        assert '' == check('anchorna create')
-        fname_seqs = tmpdir / 'pesti_example.gff'
-        assert '' == check('anchorna create --tutorial-subset')
-        assert '' == check('anchorna go --thr-quota-add-anchor 0.5 --score-add-word 18 --no-pbar anchors.gff')
-        assert 'A10' in check('anchorna print anchors.gff')
-        assert '(poor)' in check('anchorna print anchors.gff -v')
-        out1 = check('anchorna combine anchors.gff|a5:a10|a8')
-        out2 = check('anchorna combine anchors.gff|a5,a6,a7,a9')
-        assert out1 == out2
-        assert 'anchor0' in check('anchorna export --fmt jalview anchors.gff')
-        assert 'anchorna' in check('anchorna export anchors.gff')
-        with patch('subprocess.run'):  # we do not want to actually start jalview here
-            assert '' == check('anchorna view anchors.gff')
-        anchors = read_anchors('anchors.gff')
+def test_anchorna_workflow_subset_poor(tmp_path_cd):
+    tmpdir = tmp_path_cd
+    assert '' == check('anchorna create')
+    fname_seqs = tmpdir / 'pesti_example.gff'
+    assert '' == check('anchorna create --tutorial-subset')
+    assert '' == check('anchorna go --thr-quota-add-anchor 0.5 --score-add-word 18 --no-pbar anchors.gff')
+    assert 'A10' in check('anchorna print anchors.gff')
+    assert '(poor)' in check('anchorna print anchors.gff -v')
+    out1 = check('anchorna combine anchors.gff|a5:a10|a8')
+    out2 = check('anchorna combine anchors.gff|a5,a6,a7,a9')
+    assert out1 == out2
+    assert 'anchor0' in check('anchorna export --fmt jalview anchors.gff')
+    assert 'anchorna' in check('anchorna export anchors.gff')
+    with patch('subprocess.run'):  # we do not want to actually start jalview here
+        assert '' == check('anchorna view anchors.gff')
+    anchors = read_anchors('anchors.gff')
+    check(f'anchorna cutout anchors.gff atg>+5 end-10 --fname {fname_seqs}')
+    seqs = read(fname_seqs)
+    seqs2 = cutout(seqs, anchors, 'start+10', 'a5^-5')
+    seqs3 = cutout(seqs, anchors, 'a5^-5', '*>')
+    seqs4 = cutout(seqs, anchors, '*>', 'end')
+    assert str(seqs[0, 10:]) == seqs2[0].data + seqs3[0].data + seqs4[0].data
+
+    _fix_open_log_file_on_windows()
+
+
+def test_anchorna_workflow_subset_no_cds(tmp_path_cd):
+    tmpdir = tmp_path_cd
+    assert '' == check('anchorna create')
+    fname_seqs = tmpdir / 'pesti_example.gff'
+    assert '' == check('anchorna create --tutorial-subset --no-cds')
+    assert '' == check('anchorna go --no-pbar anchors.gff')
+    anchors1 = read_anchors('anchors.gff')
+    assert anchors1.no_cds
+
+    assert '' == check('anchorna create --tutorial-subset')
+    assert '' == check('anchorna go --no-pbar anchors_cds.gff')
+    anchors2 = read_anchors('anchors_cds.gff')
+    anchors2.no_cds = True
+    for anchor in anchors2:
+        for fluke in anchor:
+            fluke.offset = 0
+    assert anchors1 == anchors2
+
+    assert 'A11' in check('anchorna print anchors.gff')
+    assert 'F1' in check('anchorna print anchors.gff -v')
+    out1 = check('anchorna combine anchors.gff|a5:a10|a8')
+    out2 = check('anchorna combine anchors.gff|a5,a6,a7,a9')
+    assert out1 == out2
+    assert 'anchor0' in check('anchorna export --fmt jalview anchors.gff')
+    assert 'anchor0' in check('anchorna export --fmt jalview -m nt anchors.gff')
+    assert 'anchorna' in check('anchorna export anchors.gff')
+    with patch('subprocess.run'):  # we do not want to actually start jalview here
+        assert '' == check('anchorna view anchors.gff')
+        assert '' == check('anchorna view anchors.gff --align a1')
+    anchors = read_anchors('anchors.gff')
+    with pytest.raises(ValueError):
         check(f'anchorna cutout anchors.gff atg>+5 end-10 --fname {fname_seqs}')
-        seqs = read(fname_seqs)
-        seqs2 = cutout(seqs, anchors, 'start+10', 'a5^-5')
-        seqs3 = cutout(seqs, anchors, 'a5^-5', '*>')
-        seqs4 = cutout(seqs, anchors, '*>', 'end')
-        assert str(seqs[0, 10:]) == seqs2[0].data + seqs3[0].data + seqs4[0].data
+    seqs = read(fname_seqs)
+    seqs2 = cutout(seqs, anchors, 'start+10', 'a5^-5')
+    seqs3 = cutout(seqs, anchors, 'a5^-5', '*>')
+    seqs4 = cutout(seqs, anchors, '*>', 'end')
+    assert str(seqs[0, 10:]) == seqs2[0].data + seqs3[0].data + seqs4[0].data
 
-        _fix_open_log_file_on_windows()
-
-
-def test_anchorna_workflow_subset_no_cds():
-    with _changetmpdir() as tmpdir:
-        assert '' == check('anchorna create')
-        fname_seqs = tmpdir / 'pesti_example.gff'
-        assert '' == check('anchorna create --tutorial-subset --no-cds')
-        assert '' == check('anchorna go --no-pbar anchors.gff')
-        anchors1 = read_anchors('anchors.gff')
-        assert anchors1.no_cds
-
-        assert '' == check('anchorna create --tutorial-subset')
-        assert '' == check('anchorna go --no-pbar anchors_cds.gff')
-        anchors2 = read_anchors('anchors_cds.gff')
-        anchors2.no_cds = True
-        for anchor in anchors2:
-            for fluke in anchor:
-                fluke.offset = 0
-        assert anchors1 == anchors2
-
-        assert 'A11' in check('anchorna print anchors.gff')
-        assert 'F1' in check('anchorna print anchors.gff -v')
-        out1 = check('anchorna combine anchors.gff|a5:a10|a8')
-        out2 = check('anchorna combine anchors.gff|a5,a6,a7,a9')
-        assert out1 == out2
-        assert 'anchor0' in check('anchorna export --fmt jalview anchors.gff')
-        assert 'anchor0' in check('anchorna export --fmt jalview -m nt anchors.gff')
-        assert 'anchorna' in check('anchorna export anchors.gff')
-        with patch('subprocess.run'):  # we do not want to actually start jalview here
-            assert '' == check('anchorna view anchors.gff')
-            assert '' == check('anchorna view anchors.gff --align a1')
-        anchors = read_anchors('anchors.gff')
-        with pytest.raises(ValueError):
-            check(f'anchorna cutout anchors.gff atg>+5 end-10 --fname {fname_seqs}')
-        seqs = read(fname_seqs)
-        seqs2 = cutout(seqs, anchors, 'start+10', 'a5^-5')
-        seqs3 = cutout(seqs, anchors, 'a5^-5', '*>')
-        seqs4 = cutout(seqs, anchors, '*>', 'end')
-        assert str(seqs[0, 10:]) == seqs2[0].data + seqs3[0].data + seqs4[0].data
-
-        _fix_open_log_file_on_windows()
+    _fix_open_log_file_on_windows()
 
 
 @pytest.mark.slowtest
-def test_reproduce_anchor_file_complete():
-    with _changetmpdir() as tmpdir:
-        check('anchorna create --tutorial')
-        check('anchorna go --no-pbar anchors.gff --no-logging --njobs=-1')
-        anchors = read_anchors('anchors.gff')
-        fname = files('anchorna.tests.data').joinpath('anchors_complete.gff')
-        try:
-            anchors2 = read_anchors(fname)
-        except FileNotFoundError:
-            warn(f'Did not find test file {fname}, create it')
-            import shutil
-            shutil.copy(tmpdir / 'anchors.gff', fname)
-            anchors2 = read_anchors(fname)
+def test_reproduce_anchor_file_complete(tmp_path_cd):
+    tmpdir = tmp_path_cd
+    check('anchorna create --tutorial')
+    check('anchorna go --no-pbar anchors.gff --no-logging --njobs=-1')
+    anchors = read_anchors('anchors.gff')
+    fname = files('anchorna.tests.data').joinpath('anchors_complete.gff')
+    try:
+        anchors2 = read_anchors(fname)
+    except FileNotFoundError:
+        warn(f'Did not find test file {fname}, create it')
+        import shutil
+        shutil.copy(tmpdir / 'anchors.gff', fname)
+        anchors2 = read_anchors(fname)
     assert anchors2 == anchors
 
 
 @pytest.mark.slowtest
-def test_tutorial():
+def test_tutorial(tmp_path_cd):
     fname = files('anchorna').joinpath('../README.md')
     if not os.path.exists(fname):
         pytest.skip('README.md only available in dev install')
@@ -268,16 +281,15 @@ def test_tutorial():
     tutorial = 'anchorna create --tutorial\n' + readme[i1:i2]
     tutorial = tutorial.replace('"A??>" "A??<"', '"A40>" "A41<"')
     sys.modules['IPython'] = MagicMock()
-    with _changetmpdir():
-        with patch('subprocess.run'):
-            for line in tutorial.splitlines():
-                if line.startswith('anchorna'):
-                    line = line.replace('| anchorna view -', '').replace('"', '')
-                    line = line.split('#')[0].strip()
-                    check(line)
+    with patch('subprocess.run'):
+        for line in tutorial.splitlines():
+            if line.startswith('anchorna'):
+                line = line.replace('| anchorna view -', '').replace('"', '')
+                line = line.split('#')[0].strip()
+                check(line)
 
 
-def test_export_stockholm():
+def test_export_stockholm(tmp_path_cd):
     stockholmf = ('# STOCKHOLM 1.0\n'
                   'S1 ---gGTATACG--\n'
                   'S2 -ggggtatacc--\n'
@@ -292,136 +304,132 @@ def test_export_stockholm():
         'S1	anchorna	anchor	1	2	28	+	.	word=BLA;median_score=22;Name=A0\n'
         'S2	anchorna	fluke	2	3	28	+	.	word=UPS;median_score=22;Name=A0_S2\n'
     )
-    with _changetmpdir():
-        with open('seqs.stk', 'w') as f:
-            f.write(stockholmf)
-        with open('anchors.gff', 'w') as f:
-            f.write(anchorf)
-        check('anchorna create')
-        check('anchorna export anchors.gff --fname seqs.stk --fmt stockholm --out seqs_gc.stk')
-        with open('seqs_gc.stk') as f:
-            content = f.read()
+    with open('seqs.stk', 'w') as f:
+        f.write(stockholmf)
+    with open('anchors.gff', 'w') as f:
+        f.write(anchorf)
+    check('anchorna create')
+    check('anchorna export anchors.gff --fname seqs.stk --fmt stockholm --out seqs_gc.stk')
+    with open('seqs_gc.stk') as f:
+        content = f.read()
     assert gcrow in content
 
 
-def test_anchorna_multiple_cds():
-    with _changetmpdir():
-        assert '' == check('anchorna create')
-        assert '' == check('anchorna create --tutorial-subset')
-        assert '' == check('anchorna go --no-pbar anchors.gff')
-        out1 = check('anchorna print anchors.gff')
-        out1v = check('anchorna print anchors.gff -v --mode nt')
-        # we create two CDS which have the same anchors
-        anchors = read_anchors('anchors.gff')
-        fts1 = anchors[0:1].convert2fts(mode='nt')
-        fts2 = anchors[3:4].convert2fts(mode='nt')
-        fts3 = anchors[4:5].convert2fts(mode='nt')
-        fts4 = anchors[-1:].convert2fts(mode='nt')
-        for ft1, ft2 in zip(fts1, fts2):
-            assert ft1.seqid == ft2.seqid
-            ft1.loc.stop = ft2.loc.stop
-            ft1.type = 'CDS'
-        for ft1, ft2 in zip(fts3, fts4):
-            assert ft1.seqid == ft2.seqid
-            ft1.loc.stop = ft2.loc.stop
-            ft1.type = 'CDS'
-        seqs = read('pesti_example.gff')
-        seqs.fts = fts1
-        seqs.write('cds1.gff')
-        seqs.fts = fts3
-        seqs.write('cds2.gff')
-        # run anchorna individually on two CDS and combine results
-        with pytest.warns():  # first codon is not a start codon
-            assert '' == check('anchorna go --fname cds1.gff --no-pbar anchors_cds1.gff')
-            assert '' == check('anchorna go --fname cds2.gff --no-pbar anchors_cds2.gff')
-        assert '' == check('anchorna combine anchors_cds1.gff anchors_cds2.gff -o anchors_both_cds.gff')
-        assert '' == check('anchorna combine anchors_cds1.gff anchors_cds2.gff -o anchors_both_cds_nt.gff --convert-nt')
-        out2 = check('anchorna print anchors_both_cds.gff')
-        out2v = check('anchorna print anchors_both_cds.gff -v --mode nt')
-        out3v = check('anchorna print anchors_both_cds_nt.gff -v')
-        # for print with mode aa, we have the wrong offset
-        for line1, line2 in zip(out1.strip().splitlines(), out2.strip().splitlines()):
-            assert line1.split('+')[1] == line2.split('+')[1]
-        # perfect for mode nt
-        assert out2v == out1v
-        assert out3v == out1v
+def test_anchorna_multiple_cds(tmp_path_cd):
+    assert '' == check('anchorna create')
+    assert '' == check('anchorna create --tutorial-subset')
+    assert '' == check('anchorna go --no-pbar anchors.gff')
+    out1 = check('anchorna print anchors.gff')
+    out1v = check('anchorna print anchors.gff -v --mode nt')
+    # we create two CDS which have the same anchors
+    anchors = read_anchors('anchors.gff')
+    fts1 = anchors[0:1].convert2fts(mode='nt')
+    fts2 = anchors[3:4].convert2fts(mode='nt')
+    fts3 = anchors[4:5].convert2fts(mode='nt')
+    fts4 = anchors[-1:].convert2fts(mode='nt')
+    for ft1, ft2 in zip(fts1, fts2):
+        assert ft1.seqid == ft2.seqid
+        ft1.loc.stop = ft2.loc.stop
+        ft1.type = 'CDS'
+    for ft1, ft2 in zip(fts3, fts4):
+        assert ft1.seqid == ft2.seqid
+        ft1.loc.stop = ft2.loc.stop
+        ft1.type = 'CDS'
+    seqs = read('pesti_example.gff')
+    seqs.fts = fts1
+    seqs.write('cds1.gff')
+    seqs.fts = fts3
+    seqs.write('cds2.gff')
+    # run anchorna individually on two CDS and combine results
+    with pytest.warns():  # first codon is not a start codon
+        assert '' == check('anchorna go --fname cds1.gff --no-pbar anchors_cds1.gff')
+        assert '' == check('anchorna go --fname cds2.gff --no-pbar anchors_cds2.gff')
+    assert '' == check('anchorna combine anchors_cds1.gff anchors_cds2.gff -o anchors_both_cds.gff')
+    assert '' == check('anchorna combine anchors_cds1.gff anchors_cds2.gff -o anchors_both_cds_nt.gff --convert-nt')
+    out2 = check('anchorna print anchors_both_cds.gff')
+    out2v = check('anchorna print anchors_both_cds.gff -v --mode nt')
+    out3v = check('anchorna print anchors_both_cds_nt.gff -v')
+    # for print with mode aa, we have the wrong offset
+    for line1, line2 in zip(out1.strip().splitlines(), out2.strip().splitlines()):
+        assert line1.split('+')[1] == line2.split('+')[1]
+    # perfect for mode nt
+    assert out2v == out1v
+    assert out3v == out1v
 
 
-def test_anchorna_antisense():
-    with _changetmpdir():
-        assert '' == check('anchorna create')
-        assert '' == check('anchorna create --tutorial-subset')
-        assert '' == check('anchorna go --no-pbar anchors.gff')
-        out1v = check('anchorna print anchors.gff -v')
-        seqs1 = read('pesti_example.gff')
-        seqs2 = seqs1.copy().rc(update_fts=True)
-        seqs2.write('pestirc.gff')
-        assert '' == check('anchorna go --no-pbar anchorsrc.gff --fname pestirc.gff')
-        out2v = check('anchorna print anchorsrc.gff -v')
-        assert out2v == out1v
-        anchors1 = read_anchors('anchors.gff')
-        anchors2 = read_anchors('anchorsrc.gff')
-        c1 = cutout(seqs1, anchors1, '3', '10')
-        c2 = cutout(seqs2, anchors2, '10', '3')
-        for s in c1 + c2:
-            del s.meta.offset
-        assert c2.rc() == c1
-        c1 = cutout(seqs1.copy()['cds'].translate(), anchors1, '3', '10^', mode='aa')
-        c2 = cutout(seqs2.copy()['cds'].translate(), anchors2, '3', '10^', mode='aa')
-        for s in c1 + c2:
-            del s.meta.fts
-        assert c2 == c1
-        c1 = cutout(seqs1.copy()['cds'], anchors1, '3', '10^', mode='cds')
-        c2 = cutout(seqs2.copy()['cds'], anchors2, '3', '10^', mode='cds')
-        for s in c1 + c2:
-            del s.meta.fts
-        assert c2 == c1
+def test_anchorna_antisense(tmp_path_cd):
+    assert '' == check('anchorna create')
+    assert '' == check('anchorna create --tutorial-subset')
+    assert '' == check('anchorna go --no-pbar anchors.gff')
+    out1v = check('anchorna print anchors.gff -v')
+    seqs1 = read('pesti_example.gff')
+    seqs2 = seqs1.copy().rc(update_fts=True)
+    seqs2.write('pestirc.gff')
+    assert '' == check('anchorna go --no-pbar anchorsrc.gff --fname pestirc.gff')
+    out2v = check('anchorna print anchorsrc.gff -v')
+    assert out2v == out1v
+    anchors1 = read_anchors('anchors.gff')
+    anchors2 = read_anchors('anchorsrc.gff')
+    c1 = cutout(seqs1, anchors1, '3', '10')
+    c2 = cutout(seqs2, anchors2, '10', '3')
+    for s in c1 + c2:
+        del s.meta.offset
+    assert c2.rc() == c1
+    c1 = cutout(seqs1.copy()['cds'].translate(), anchors1, '3', '10^', mode='aa')
+    c2 = cutout(seqs2.copy()['cds'].translate(), anchors2, '3', '10^', mode='aa')
+    for s in c1 + c2:
+        del s.meta.fts
+    assert c2 == c1
+    c1 = cutout(seqs1.copy()['cds'], anchors1, '3', '10^', mode='cds')
+    c2 = cutout(seqs2.copy()['cds'], anchors2, '3', '10^', mode='cds')
+    for s in c1 + c2:
+        del s.meta.fts
+    assert c2 == c1
 
 
-def test_anchorna_multiple_cds_antisense():
-    with _changetmpdir():
-        assert '' == check('anchorna create')
-        assert '' == check('anchorna create --tutorial-subset')
-        assert '' == check('anchorna go --no-pbar anchors.gff')
-        # we create two CDS, one on + one on - strand, both have the same anchors
-        anchors = read_anchors('anchors.gff')
-        fts1 = anchors[0:1].convert2fts(mode='nt')
-        fts2 = anchors[3:4].convert2fts(mode='nt')
-        for ft1, ft2 in zip(fts1, fts2):
-            assert ft1.seqid == ft2.seqid
-            ft1.loc.stop = ft2.loc.stop
-            ft1.type = 'CDS'
-        seqs = read('pesti_example.gff')
-        seqs.fts = fts1
-        seqs = (seqs + seqs.copy().rc(update_fts=True)).merge(update_fts=True)
-        seqs.write('combined.gff')
-        seqs1 = seqs.copy()
-        seqs1.fts = seqs1.fts.select(strand='+')
-        seqs1.write('cds1.gff')
-        seqs2 = seqs.copy()
-        seqs2.fts = seqs2.fts.select(strand='-')
-        seqs2.write('cds2.gff')
-        # run anchorna individually on two CDS and combine results
-        with pytest.warns():  # first codon is not a start codon
-            assert '' == check('anchorna go --fname combined.gff --no-pbar anchors_combined.gff')
-            assert '' == check('anchorna go --fname cds1.gff --no-pbar anchors_cds1.gff')
-            assert '' == check('anchorna go --fname cds2.gff --no-pbar anchors_cds2.gff')
-        with pytest.raises(ValueError, match='Cannot combine'):
-            check('anchorna combine anchors_cds1.gff anchors_cds2.gff')
-        assert '' == check('anchorna combine anchors_cds1.gff anchors_cds2.gff -o anchors_both_cds_nt.gff --convert-nt')
-        out2 = check('anchorna print anchors_combined.gff --mode nt')
-        out2v = check('anchorna print anchors_combined.gff -v --mode nt')
-        out3 = check('anchorna print anchors_both_cds_nt.gff')
-        out3v = check('anchorna print anchors_both_cds_nt.gff -v')
-        assert out2 in out3
-        assert out2v in out3v
+def test_anchorna_multiple_cds_antisense(tmp_path_cd):
+    assert '' == check('anchorna create')
+    assert '' == check('anchorna create --tutorial-subset')
+    assert '' == check('anchorna go --no-pbar anchors.gff')
+    # we create two CDS, one on + one on - strand, both have the same anchors
+    anchors = read_anchors('anchors.gff')
+    fts1 = anchors[0:1].convert2fts(mode='nt')
+    fts2 = anchors[3:4].convert2fts(mode='nt')
+    for ft1, ft2 in zip(fts1, fts2):
+        assert ft1.seqid == ft2.seqid
+        ft1.loc.stop = ft2.loc.stop
+        ft1.type = 'CDS'
+    seqs = read('pesti_example.gff')
+    seqs.fts = fts1
+    seqs = (seqs + seqs.copy().rc(update_fts=True)).merge(update_fts=True)
+    seqs.write('combined.gff')
+    seqs1 = seqs.copy()
+    seqs1.fts = seqs1.fts.select(strand='+')
+    seqs1.write('cds1.gff')
+    seqs2 = seqs.copy()
+    seqs2.fts = seqs2.fts.select(strand='-')
+    seqs2.write('cds2.gff')
+    # run anchorna individually on two CDS and combine results
+    with pytest.warns():  # first codon is not a start codon
+        assert '' == check('anchorna go --fname combined.gff --no-pbar anchors_combined.gff')
+        assert '' == check('anchorna go --fname cds1.gff --no-pbar anchors_cds1.gff')
+        assert '' == check('anchorna go --fname cds2.gff --no-pbar anchors_cds2.gff')
+    with pytest.raises(ValueError, match='Cannot combine'):
+        check('anchorna combine anchors_cds1.gff anchors_cds2.gff')
+    assert '' == check('anchorna combine anchors_cds1.gff anchors_cds2.gff -o anchors_both_cds_nt.gff --convert-nt')
+    out2 = check('anchorna print anchors_combined.gff --mode nt')
+    out2v = check('anchorna print anchors_combined.gff -v --mode nt')
+    out3 = check('anchorna print anchors_both_cds_nt.gff')
+    out3v = check('anchorna print anchors_both_cds_nt.gff -v')
+    assert out2 in out3
+    assert out2v in out3v
 
-        anchors = read_anchors('anchors_both_cds_nt.gff')
-        c1 = cutout(seqs, anchors, '0', '2', mode='aa')
-        c2 = cutout(seqs, anchors, '5', '7', mode='aa')
-        assert c2.rc() == c1
-        assert '' == check('anchorna cutout anchors_both_cds_nt.gff 5 7 --fname combined.gff -o cutout.fasta')
-        c3 = read('cutout.fasta')
-        for s in c1 + c3:
-            s.meta = {}
-        assert c3.rc() == c1
+    anchors = read_anchors('anchors_both_cds_nt.gff')
+    c1 = cutout(seqs, anchors, '0', '2', mode='aa')
+    c2 = cutout(seqs, anchors, '5', '7', mode='aa')
+    assert c2.rc() == c1
+    assert '' == check('anchorna cutout anchors_both_cds_nt.gff 5 7 --fname combined.gff -o cutout.fasta')
+    c3 = read('cutout.fasta')
+    for s in c1 + c3:
+        s.meta = {}
+    assert c3.rc() == c1
