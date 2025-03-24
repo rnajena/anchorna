@@ -64,12 +64,8 @@ def tmp_path_cd(tmp_path):
     """
     A fixture which changes the dir to a temporary directory
     """
-    origin = Path().resolve()
-    try:
-        os.chdir(tmp_path)
+    with contextlib.chdir(tmp_path):
         yield tmp_path
-    finally:
-        os.chdir(origin)
 
 
 def check(cmd):
