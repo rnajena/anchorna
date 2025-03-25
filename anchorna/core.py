@@ -184,12 +184,12 @@ def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True):
         else:
             gil = _is_gil_enabled()
         if not gil:
-            msg = ('No GIL detected, still use different processes instead of threads. '
-                   'When running the tutorial with python 3.13.2 threads were not created properly. '
+            msg = ('No GIL detected, using parallel threads is EXPERIMENTAL. '
+                   'Set PYTHON_GIL=1 to use parallel processes instead of threads. '
+                   'When running the tutorial with python 3.13.2, the speed-up using processes was much better. '
                    'Need to check with a later python version if this problem persists.')
             log.warning(msg)
-            gil = True
-        Executor = concurrent.futures.ProcessPoolExecutor if gil else concurrent.futures.ThreadPoolExecutor
+        Executor = concurrent.futures.ProcessPoolExecutor if gil else partial(concurrent.futures.ThreadPoolExecutor, thread_name_prefix='anchorna-go')
         njobs = njobs if njobs > 0 else process_cpu_count() + njobs
         log.info(f"use {njobs} {'processes' if gil else 'threads'} in parallel")
         executor = Executor(max_workers=njobs)
