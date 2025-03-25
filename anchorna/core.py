@@ -9,7 +9,7 @@ The module also provides `.combine()` to combine/select/remove anchors and
 from functools import partial
 from heapq import heappush, heappop
 import logging
-import multiprocessing
+import concurrent.futures
 from warnings import warn
 
 from sugar import BioBasket
@@ -141,6 +141,33 @@ def anchor_at_pos(i, aas, w, gseqid, search_range,
     return anchor
 
 
+# This is the same as below, just using multiprocessing.pool instead of concurrent.futures
+# def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True):
+#     if results is None:
+#         results = []
+#     if njobs == 0:
+#         log.info('sequential processing')
+#         mymap = map(do_work, tasks)
+#     else:
+#         cpus = multiprocessing.cpu_count()
+#         njobs = min(cpus, njobs) if njobs > 0 else cpus + njobs
+#         log.info(f'use {njobs} cores in parallel')
+#         pool = multiprocessing.Pool(njobs)
+#         mymap = pool.imap_unordered(do_work, tasks)
+#     if pbar:
+#         desc = '{:3d} anchors found, check positions'
+#         pbar = tqdm(desc=desc.format(0), total=len(tasks))
+#     for res in mymap:
+#         if res is not None:
+#             results.append(res)
+#         if pbar:
+#             if pbar.update():
+#                 pbar.set_description(desc.format(len(results)))
+#     if njobs != 0:
+#         pool.terminate()
+#     return results
+
+
 def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True):
     if results is None:
         results = []
@@ -148,11 +175,25 @@ def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True):
         log.info('sequential processing')
         mymap = map(do_work, tasks)
     else:
-        cpus = multiprocessing.cpu_count()
-        njobs = min(cpus, njobs) if njobs > 0 else cpus + njobs
-        log.info(f'use {njobs} cores in parallel')
-        pool = multiprocessing.Pool(njobs)
-        mymap = pool.imap_unordered(do_work, tasks)
+        try:
+            from sys import _is_gil_enabled
+            from os import process_cpu_count
+        except ImportError:
+            gil = True
+            from os import cpu_count as process_cpu_count
+        else:
+            gil = _is_gil_enabled()
+        if not gil:
+            msg = ('No GIL detected, still use different processes instead of threads. '
+                   'When running the tutorial with python 3.13.2 threads were not created properly. '
+                   'Need to check with a later python version if this problem persists.')
+            log.warning(msg)
+            gil = True
+        Executor = concurrent.futures.ProcessPoolExecutor if gil else concurrent.futures.ThreadPoolExecutor
+        njobs = njobs if njobs > 0 else process_cpu_count() + njobs
+        log.info(f"use {njobs} {'processes' if gil else 'threads'} in parallel")
+        executor = Executor(max_workers=njobs)
+        mymap = executor.map(do_work, tasks)
     if pbar:
         desc = '{:3d} anchors found, check positions'
         pbar = tqdm(desc=desc.format(0), total=len(tasks))
@@ -163,7 +204,7 @@ def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True):
             if pbar.update():
                 pbar.set_description(desc.format(len(results)))
     if njobs != 0:
-        pool.terminate()
+        executor.shutdown()
     return results
 
 
