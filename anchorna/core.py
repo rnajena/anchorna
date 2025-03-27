@@ -10,6 +10,7 @@ from functools import partial
 from heapq import heappush, heappop
 import logging
 import concurrent.futures
+# import multiprocessing.pool
 from warnings import warn
 
 from sugar import BioBasket
@@ -141,33 +142,6 @@ def anchor_at_pos(i, aas, w, gseqid, search_range,
     return anchor
 
 
-# This is the same as below, just using multiprocessing.pool instead of concurrent.futures
-# def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True):
-#     if results is None:
-#         results = []
-#     if njobs == 0:
-#         log.info('sequential processing')
-#         mymap = map(do_work, tasks)
-#     else:
-#         cpus = multiprocessing.cpu_count()
-#         njobs = min(cpus, njobs) if njobs > 0 else cpus + njobs
-#         log.info(f'use {njobs} cores in parallel')
-#         pool = multiprocessing.Pool(njobs)
-#         mymap = pool.imap_unordered(do_work, tasks)
-#     if pbar:
-#         desc = '{:3d} anchors found, check positions'
-#         pbar = tqdm(desc=desc.format(0), total=len(tasks))
-#     for res in mymap:
-#         if res is not None:
-#             results.append(res)
-#         if pbar:
-#             if pbar.update():
-#                 pbar.set_description(desc.format(len(results)))
-#     if njobs != 0:
-#         pool.terminate()
-#     return results
-
-
 def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True, threaded=False):
     if results is None:
         results = []
@@ -193,10 +167,13 @@ def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True, threaded=F
                 msg = 'GIL detected, using threads is not feasible with this version of Python'
                 raise RuntimeError(msg)
         Executor = partial(concurrent.futures.ThreadPoolExecutor, thread_name_prefix='anchorna-go') if threaded else concurrent.futures.ProcessPoolExecutor
+        # Pool = multiprocessing.pool.ThreadPool if threaded else multiprocessing.pool.Pool
         njobs = njobs if njobs > 0 else process_cpu_count() + njobs
         log.info(f"use {njobs} {'threads' if threaded else 'processes'} in parallel")
         executor = Executor(max_workers=njobs)
         mymap = executor.map(do_work, tasks)
+        # pool = Pool(njobs)
+        # mymap = pool.imap_unordered(do_work, tasks)
     if pbar:
         desc = '{:3d} anchors found, check positions'
         pbar = tqdm(desc=desc.format(0), total=len(tasks))
@@ -208,6 +185,7 @@ def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True, threaded=F
                 pbar.set_description(desc.format(len(results)))
     if njobs != 0:
         executor.shutdown()
+        # pool.terminate()
     return results
 
 
