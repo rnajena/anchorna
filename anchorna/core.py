@@ -168,7 +168,7 @@ def anchor_at_pos(i, aas, w, gseqid, search_range,
 #     return results
 
 
-def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True):
+def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True, threaded=False):
     if results is None:
         results = []
     if njobs == 0:
@@ -176,22 +176,25 @@ def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True):
         mymap = map(do_work, tasks)
     else:
         try:
-            from sys import _is_gil_enabled
             from os import process_cpu_count
         except ImportError:
-            gil = True
             from os import cpu_count as process_cpu_count
-        else:
-            gil = _is_gil_enabled()
-        if not gil:
-            msg = ('No GIL detected, using parallel threads is EXPERIMENTAL. '
-                   'Set PYTHON_GIL=1 to use parallel processes instead of threads. '
-                   'When running the tutorial with python 3.13.2, the speed-up using processes was much better. '
-                   'Need to check with a later python version if this problem persists.')
-            log.warning(msg)
-        Executor = concurrent.futures.ProcessPoolExecutor if gil else partial(concurrent.futures.ThreadPoolExecutor, thread_name_prefix='anchorna-go')
+        if threaded:
+            # Background: Python is moving towards a free threaded version
+            # When running the tutorial with python 3.13.2, the speed-up using processes was much better.
+            # Need to check with a later python version if this problem persists.
+            try:
+                from sys import _is_gil_enabled
+            except ImportError:
+                gil = True
+            else:
+                gil = _is_gil_enabled()
+            if gil:
+                msg = 'GIL detected, using threads is not feasible with this version of Python'
+                raise RuntimeError(msg)
+        Executor = partial(concurrent.futures.ThreadPoolExecutor, thread_name_prefix='anchorna-go') if threaded else concurrent.futures.ProcessPoolExecutor
         njobs = njobs if njobs > 0 else process_cpu_count() + njobs
-        log.info(f"use {njobs} {'processes' if gil else 'threads'} in parallel")
+        log.info(f"use {njobs} {'threads' if threaded else 'processes'} in parallel")
         executor = Executor(max_workers=njobs)
         mymap = executor.map(do_work, tasks)
     if pbar:
@@ -208,7 +211,7 @@ def _start_parallel_jobs(tasks, do_work, results, njobs=0, pbar=True):
     return results
 
 
-def find_anchors_winlen(aas, w, gseqid, indexrange=None, anchors=None, njobs=0, pbar=True, **kw):
+def find_anchors_winlen(aas, w, gseqid, indexrange=None, anchors=None, njobs=0, pbar=True, threaded=False, **kw):
     """
     Find multiple anchors in aa sequences for a specific word length
 
@@ -227,7 +230,7 @@ def find_anchors_winlen(aas, w, gseqid, indexrange=None, anchors=None, njobs=0, 
     if indexrange is None:
         indexrange = list(range(len(gaa)-w+1))
     do_work = partial(anchor_at_pos, aas=aas, w=w, gseqid=gseqid, **kw)
-    anchors = _start_parallel_jobs(indexrange, do_work, anchors, njobs=njobs, pbar=pbar)
+    anchors = _start_parallel_jobs(indexrange, do_work, anchors, njobs=njobs, pbar=pbar, threaded=threaded)
     assert all([f[0].seqid == gseqid for f in anchors])
     return AnchorList(anchors).sort()
 

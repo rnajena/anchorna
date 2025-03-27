@@ -394,6 +394,7 @@ def run_cmdline(cmd_args=None):
     p_go.add_argument('fname_anchor', help='anchor file name (GFF output)')
     p_go.add_argument('--njobs', help='number of jobs to use', type=int, default=argparse.SUPPRESS)
     p_go.add_argument('--no-pbar', help='do not show progress bar', action='store_false', dest='pbar', default=argparse.SUPPRESS)
+    p_go.add_argument('--threaded', help='use multiple threads instead of processes (experimental, needs Python without GIL)', action='store_true', default=argparse.SUPPRESS)
     p_go.add_argument('--no-remove', help='do not remove contradicting anchors', action='store_false', dest='remove', default=argparse.SUPPRESS)
     p_go.add_argument('--continue-with', help='only remove contradicting anchors from passed anchor list', default=argparse.SUPPRESS)
     p_go.add_argument('--no-logging', action='store_true', help=argparse.SUPPRESS, default=argparse.SUPPRESS)  # for testing purposes
