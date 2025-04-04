@@ -59,9 +59,9 @@ anchorna print --mode nt anchors.gff
 anchorna view anchors.gff --align A1
 # For reference, the following commands are called under the hood
 # by anchorna view
-anchorna export anchors.gff --fmt jalview -o jalview_fts.txt
-sugar translate --cds pesti_example.gff -o pestiaa.fasta
-jalview pestiaa.fasta --features jalview_fts.txt
+#anchorna export anchors.gff --fmt jalview -o jalview_fts.txt
+#sugar translate --cds pesti_example.gff -o pestiaa.fasta
+#jalview pestiaa.fasta --features jalview_fts.txt
 
 # View anchors in Jalview (nucleotide sequences)
 anchorna view --mode nt anchors.gff
@@ -76,7 +76,12 @@ anchorna print anchors2.gff
 
 # Cutout subsequences starting before start codon and ending 10 nucleotides
 # after 3rd anchor (remember 0-based indexing) for usage in external tool
-anchorna cutout anchors2.gff "ATG<" "A2>+10" -o pestiA3.fasta
+anchorna cutout anchors2.gff "ATG" "A2+10" -o pestiA3.fasta
+
+# <, > can be used to specify left and right end of anchor, ^ to reference the middle position,
+# by default the anchor is included in the cutout, therefore the above call is the same as
+#anchorna cutout anchors2.gff "ATG<" "A2>+10" -o pestiA3.fasta
+
 
 
 ### Advanced
@@ -85,11 +90,19 @@ anchorna load anchors2.gff
 
 # Run anchorna on subsequences and combine results into a single anchor file
 # We are not satisfied with the long region (~ 2000 nt) without any anchors,
-# find two anchors immediately before and after this "empty" region,
-# replace the "??" signs with the anchor numbers
+# find two anchors immediately before and after this "empty" region with
 anchorna view anchors2.gff
-anchorna cutout anchors2.gff "A??>" "A??<" -o pesti_sub.sjson  # Need to use sjson format for now, to save the offsets
-anchorna go --fname pesti_sub.sjson --thr-quota-add-anchor 0.9 anchors_sub.gff  # adapt options
+
+# The following command is a bit long, but it does the job well.
+# It cuts out sequences between the two anchors
+# (please replace the ?? characters with the anchors around the "empty region")
+# and writes the sequences to stdout, which is piped into the next command.
+# --fmt sjson makes this work, because we need to preserve some metadata,
+# which is not guaranteed by fasta, the default output format.
+# anchorna go --fname - tells anchorna to run the algorithm with the subsequences from stdin.
+# Also, some options are relaxed to find more anchors in this region.
+anchorna cutout anchors2.gff "A??>" "A??<" --fmt sjson | anchorna go --fname - --thr-quota-add-anchor 0.9 anchors_sub.gff
+
 # We found more anchors and investigate these
 anchorna print anchors_sub.gff
 anchorna view anchors_sub.gff
