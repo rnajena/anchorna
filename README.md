@@ -37,6 +37,14 @@ doi:[10.1101/2025.01.30.635689](https://doi.org/10.1101/2025.01.30.635689)
 A command line tool is provided, see `anchorna -h` and the help of subcommands. An example configuration file can be created with `anchorna create`.
 See the example configuration file for a description of AnchoRNA's options. Consult the [API documentation](https://anchorna.readthedocs.io) for details.
 
+Please first get an overview of the available commands with
+
+```
+anchorna -h
+```
+
+Help is available for each command, e.g. try `anchorna go -h`.
+
 Start the tutorial with
 
 ```
