@@ -13,18 +13,18 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python: ["3.11", "3.12"]
+        python: ["3.11", "3.12", "3.13"]
         options: [""]
         include:
           - os: macos-latest
-            python: "3.12"
+            python: "3.13"
           - os: windows-latest
-            python: "3.12"
+            python: "3.13"
           - os: ubuntu-latest
-            python: "3.12"
+            python: "3.13"
             options: ["warnings"]
           - os: ubuntu-latest
-            python: "3.12"
+            python: "3.13"
             options: ["full"]
     runs-on: ${{ matrix.os }}
     env:
