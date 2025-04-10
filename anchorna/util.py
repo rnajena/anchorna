@@ -10,6 +10,7 @@ from statistics import median
 from warnings import warn
 
 from sugar.core.meta import Attr
+from sugar.data import submat
 
 log = logging.getLogger('anchorna')
 
@@ -151,7 +152,7 @@ class Anchor(collections.UserList):
                 set(a1.seqids) == set(a2.seqids) and
                 all((f1.start - f2.start == a1.guide.start - a2.guide.start and f1.poor == f2.poor) for f1, f2 in zip(a1.sort(), a2.sort())))
 
-    def join_with(self, a2):
+    def join_with(self, a2, scoring=None):
         a1 = self
         if not a1.nicely_overlaps_with(a2):
             raise ValueError('Cannot join anchors which do not overlap')
@@ -197,13 +198,14 @@ class Anchor(collections.UserList):
                               poor=f1.poor)
                 flukes.append(fluke)
             anchor = Anchor(flukes, gseqid=a1.gseqid)
-            anchor._calculate_fluke_scores()
+            if scoring:
+                anchor._calculate_fluke_scores(scoring)
             return anchor
 
-    def _calculate_fluke_scores(self):
+    def _calculate_fluke_scores(self, scoring):
         words = {fluke.word for fluke in self if not fluke.poor}
         for fluke in self:
-            scores = [corrscore(fluke.word, w) for w in words]
+            scores = [corrscore(fluke.word, w, sm=submat(scoring)) for w in words]
             fluke.score = max(scores)
             fluke.median_score = median(scores)
 
@@ -262,7 +264,7 @@ class AnchorList(collections.UserList):
         self.data = sorted(self, key=key, **kw)
         return self
 
-    def merge_overlapping_anchors(self):
+    def merge_overlapping_anchors(self, scoring=None):
         """
         Remove overlapping anchors, step B of ``anchorna go``
         """
@@ -278,7 +280,7 @@ class AnchorList(collections.UserList):
                 if a1.guide.stop < a2.guide.start:
                     break
                 if a1.nicely_overlaps_with(a2):
-                    a1 = a1.join_with(a2)
+                    a1 = a1.join_with(a2, scoring=scoring)
                     already_merged.add(a2)
             ndata.append(a1)
         self.data = ndata

@@ -138,7 +138,7 @@ def anchor_at_pos(i, aas, w, gseqid, search_range,
         flukes.append(fluke)
     assert flukes[0].seqid == gseqid
     anchor = Anchor(flukes, gseqid=gseqid)
-    anchor._calculate_fluke_scores()
+    anchor._calculate_fluke_scores(scoring)
     return anchor
 
 
@@ -214,7 +214,8 @@ def find_anchors_winlen(aas, w, gseqid, indexrange=None, anchors=None, njobs=0, 
 
 
 def find_my_anchors(seqs, remove=True, aggressive_remove=True,
-                    continue_with=None, no_cds=False, **kw):
+                    continue_with=None, no_cds=False, scoring=None,
+                    **kw):
     """
     Find and return anchors in CDS region of nucleotide sequences
 
@@ -254,9 +255,9 @@ def find_my_anchors(seqs, remove=True, aggressive_remove=True,
                 if '*' in str(aa):
                     log.warning(f'Stop codon in the middle of sequence {aa.id}')
         log.info('Find anchors for specified word length')
-        anchors = find_anchors_winlen(aas, **kw)
+        anchors = find_anchors_winlen(aas, scoring=scoring, **kw)
         log.info(f'Found {len(anchors)} anchors')
-        anchors = anchors.merge_overlapping_anchors()
+        anchors = anchors.merge_overlapping_anchors(scoring=scoring)
         log.info(f'Merged into {len(anchors)} anchors')
         if no_cds:
             anchors.no_cds = True

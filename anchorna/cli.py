@@ -248,7 +248,7 @@ def _cmd_view(fname_anchor, fname, mode='aa', align=None, score_use_fluke=None):
             for seq in seqs:
                 fluke = anchor.sid[seq.id]
                 seq.data = '-' * (start - fluke._apply_mode(mode)[0]) + seq.data
-        if mode == 'nt' and align is None and seqs[0].meta._fmt == 'stockholm':
+        if (mode == 'nt' or anchors.no_cds) and align is None and seqs[0].meta._fmt == 'stockholm':
             # if input file is a stockholm file, just keep it if no changes for seqs
             fname_seq = fname
         else:
