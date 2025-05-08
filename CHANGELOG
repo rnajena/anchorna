@@ -1,4 +1,4 @@
-dev:
+v2.0.0:
   * enhance algorithm, >10x speed up for the tutorial data set
   * add multiprocessing option (--njobs)
   * add aggressive mode when removing contradicting anchors (now the default)
