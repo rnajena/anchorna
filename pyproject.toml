@@ -1,11 +1,11 @@
 [project]
 name = "anchorna"
-dynamic = ["version"]
+dynamic = ["readme", "version"]
 authors = [
     {name = "Tom Eulenfeld"},
 ]
 description = "Find anchors in RNA/DNA sequences"
-readme = "README.md"
+license = "MIT"
 classifiers = [
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
