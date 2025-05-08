@@ -2,6 +2,8 @@
 [![build status](https://github.com/rnajena/anchorna/workflows/tests/badge.svg)](https://github.com/rnajena/anchorna/actions)
 [![codecov](https://codecov.io/gh/rnajena/anchorna/branch/master/graph/badge.svg)](https://codecov.io/gh/rnajena/anchorna)
 [![docs status](https://readthedocs.org/projects/anchorna/badge/?version=latest)](https://anchorna.readthedocs.io)
+[![pypi version](https://img.shields.io/pypi/v/anchorna.svg)](https://pypi.python.org/pypi/anchorna)
+[![python version](https://img.shields.io/pypi/pyversions/anchorna.svg)](https://python.org)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.12190267.svg)](https://doi.org/10.5281/zenodo.12190267)
 
 Find anchors in RNA/DNA sequences.
