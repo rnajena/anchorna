@@ -4,6 +4,7 @@ dev:
   * add aggressive mode when removing contradicting anchors (now the default)
   * add export to GFF files
   * add export to Dialign and LocARNA anchor files
+  * allow to combine anchors found in different CDS, including antisense CDS
   * change names of some options
   * add no_cds configuration parameter and --no-cds command line flag,
     used to find anchors in non-coding and amino acid sequences
@@ -12,5 +13,5 @@ dev:
   * enhance runtime of merging anchors and removing anchors
   * update tutorial
   * other minor changes
-v1.0.0:
+v1.0.1:
   * initial release
