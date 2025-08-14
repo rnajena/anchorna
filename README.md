@@ -1,4 +1,5 @@
-### AnchoRNA
+<img src="https://raw.githubusercontent.com/rnajena/anchorna/master/docs/_static/anchorna_logo.png" alt="logo" width="600">
+
 [![build status](https://github.com/rnajena/anchorna/workflows/tests/badge.svg)](https://github.com/rnajena/anchorna/actions)
 [![codecov](https://codecov.io/gh/rnajena/anchorna/branch/master/graph/badge.svg)](https://codecov.io/gh/rnajena/anchorna)
 [![docs status](https://readthedocs.org/projects/anchorna/badge/?version=latest)](https://anchorna.readthedocs.io)
