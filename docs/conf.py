@@ -54,7 +54,9 @@ autodoc_mock_imports = parse_imports()
 print(f'set {autodoc_mock_imports=}')
 autosummary_generate = False
 
+html_static_path = ['_static']
 html_title = f'AnchoRNA <br>v{version} <br>API docs'
+html_logo = '_static/anchorna_logo.png'
 html_theme = 'furo'
 html_theme_options = {
     'footer_icons' : [],
