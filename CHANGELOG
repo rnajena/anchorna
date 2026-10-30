@@ -1,3 +1,5 @@
+v2.0.1:
+  * fixes related to anchor GFF io of anchors created by other tools"
 v2.0.0:
   * enhance algorithm, >10x speed up for the tutorial data set
   * add multiprocessing option (--njobs)

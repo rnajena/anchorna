@@ -62,17 +62,16 @@ def _read_anchors(fname, check_header=True):
     offsets = {}
     no_cds = False
     for i, line in enumerate(comments):
-        if i == 0:
-            if check_header and not line.startswith('##gff-version 3'):
+        if check_header and i == 0 and not line.startswith('##gff-version 3'):
                 raise IOError(f'{fname} not a valid GFF file')
-        elif i == 1:
-            if check_header and not line.startswith('#AnchoRNA'):
-                raise IOError(f'{fname} not a valid anchor file')
-        elif line.startswith('#no_cds'):
+        if check_header and i == 1 and not line.startswith('#AnchoRNA'):
+                raise IOError(f'{fname} not a valid AnchoRNA anchor file')
+        if line.startswith('#no_cds'):
             no_cds = True
         elif line.startswith('#offset'):
             seqid, offset = line.split()[1:]
-            offsets[seqid] = int(offset)
+            if offset != 'None':
+                offsets[seqid] = int(offset)
         elif line.startswith('#'):
             continue
     for ft in fts:

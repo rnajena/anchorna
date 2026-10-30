@@ -350,8 +350,9 @@ def anchors2fts(anchors, mode=None):
             start, stop = f._apply_mode(mode)
             ft = Feature(ftype, start=start, stop=stop, strand=f.strand,
                          meta=dict(name=name, seqid=f.seqid, score=f.score,
-                                   _gff=Attr(source='anchorna', word=f.word,
-                                             median_score=f.median_score)))
+                                   _gff=Attr(source='anchorna', word=f.word)))
+            if f.median_score is not None:
+                ft.meta._gff.median_score = f.median_score
             if hasattr(f, 'offset'):
                 ft.meta._gff.offset = f.offset
             if f.poor:
@@ -375,17 +376,18 @@ def fts2anchors(fts, no_cds=False):
                 anchors.append(Anchor(flukes, gseqid=gseqid))
                 flukes = []
             gseqid = ft.seqid
-            aname = ft.meta.name
+            aname = ft.meta.name.split('_')[0]  # usually aname is something like A0, A1, etc, but we are forgiving here
         if ft.type in ('anchor', 'fluke'):
             if not ft.meta.name.startswith(aname):
                 raise ValueError(f'Fluke with name {ft.meta.name} not part of anchor {aname}')
+            ft.meta.setdefault('_gff', {})
             start, stop = ft.locs.range
-            fluke = Fluke(seqid=ft.seqid, score=ft.meta.score,
+            fluke = Fluke(seqid=ft.seqid, score=ft.meta.get('score', 100),
                           start=start, stop=stop, strand=str(ft.loc.strand),
-                          word=ft.meta._gff.word, poor=hasattr(ft.meta._gff, 'poor'),
+                          word=ft.meta._gff.get('word', ''), poor=hasattr(ft.meta._gff, 'poor'),
                           median_score = float(ft.meta._gff.get('median_score', 1)))
-            if hasattr(ft.meta._gff, 'offset'):
-                fluke.offset = ft.meta._gff.offset
+            #if hasattr(ft.meta._gff, 'offset'):
+            fluke.offset = ft.meta._gff.get('offset')
             flukes.append(fluke)
         else:
             warn(f'Cannot convert feature of type {ft.type}')
